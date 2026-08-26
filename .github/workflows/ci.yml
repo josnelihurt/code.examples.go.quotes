@@ -45,6 +45,9 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
+      run_build_and_test: ${{ steps.decide.outputs.run_build_and_test }}
+      run_lint: ${{ steps.decide.outputs.run_lint }}
+      run_codeql: ${{ steps.decide.outputs.run_codeql }}
       run_contract_drift: ${{ steps.decide.outputs.run_contract_drift }}
     steps:
       # Only pull_request diffs are filtered; the API listing needs no checkout. On
@@ -85,17 +88,18 @@ jobs:
               - 'scripts/images.env'
               - 'scripts/e2e.env'
             workflow:
-              # CI itself: run the unfiltered matrix.
+              # CI itself or a script it executes: run the unfiltered matrix.
               - '.github/workflows/**'
               # The code.examples.ci submodule pin: the hooks and local tooling
               # it carries are CI plumbing, so a pin move forces the full matrix.
               - 'ci'
+              - 'scripts/lint.sh'
 
       # The decide pattern: the filter results fold into run_* outputs that gate
       # the matrix jobs (conventions and secrets-hygiene are ungated by design).
-      # Contract drift is the first gated consumer; later layers extend the step
-      # with their outputs (run_build_and_test, run_lint, run_codeql, run_specs,
-      # run_e2e, run_image_pins) as each consuming job lands.
+      # Contract drift, build & test, lint and CodeQL are the gated consumers
+      # landed so far; later layers extend the step with their outputs
+      # (run_specs, run_e2e, run_image_pins) as each consuming job lands.
       - name: Decide which jobs run
         id: decide
         env:
@@ -115,10 +119,25 @@ jobs:
           # Pushes to main, ci:full-build PRs and CI-configuration edits have no
           # filtered diff to trust: run every gated job.
           if [ "${EVENT_NAME:-}" != "pull_request" ] || [ "${FULL_BUILD:-false}" = "true" ] || [ "${FILTER_WORKFLOW:-false}" = "true" ]; then
+            out "run_build_and_test=true"
+            out "run_lint=true"
+            out "run_codeql=true"
             out "run_contract_drift=true"
             flush
             exit 0
           fi
+
+          backend="${FILTER_BACKEND:-false}"
+          pins="${FILTER_PINS:-false}"
+
+          # The repository-contract tests parse scripts/images.env at runtime, so
+          # a pin move must reach build-and-test too, not just the jobs that pull
+          # images (parity with the .NET catalog's Postgres-backed tests).
+          run_build_and_test="false"
+          if [ "${backend}" = "true" ] || [ "${pins}" = "true" ]; then run_build_and_test="true"; fi
+          out "run_build_and_test=${run_build_and_test}"
+          out "run_lint=${backend}"
+          out "run_codeql=${backend}"
 
           # The frozen document under docs/openapi drifts only through the contract
           # inputs: the proto sources, the vendored protos, the export image and the
@@ -215,3 +234,74 @@ jobs:
       - name: Fail on drift vs frozen contracts
         run: |
           diff -u docs/openapi/quotes-v3.openapi.json out/docs/openapi/quotes-v3.openapi.json
+
+  build-and-test:
+    name: build & test (race + coverage)
+    runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.run_build_and_test == 'true'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+
+      # The same invocation developers run via `make test`; -race catches the
+      # data races the domain's concurrency-free core should never have, and
+      # coverage is collected and trended but never gated (ADR 0008).
+      - name: Test (race, coverage on)
+        run: go test ./... -race -coverprofile=coverage.out -covermode=atomic
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage-go
+          path: coverage.out
+          if-no-files-found: error
+
+  lint:
+    name: lint (golangci-lint)
+    runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.run_lint == 'true'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+
+      # The same invocation developers run locally (scripts/lint.sh); the action
+      # installs the pinned golangci-lint so CI and laptops share one binary
+      # (ADR 0009), depguard layering rules included.
+      - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          version: v2.13.1
+
+  codeql:
+    name: security (CodeQL)
+    runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.run_codeql == 'true'
+    permissions:
+      # Required by CodeQL to upload the analysis; everything else stays read-only.
+      security-events: write
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+
+      - uses: github/codeql-action/init@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4.37.8
+        with:
+          languages: go
+
+      # The Go extractor builds the module between init and analyze (mirroring
+      # the .NET job's explicit build of both APIs).
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4.37.8
+
+      - uses: github/codeql-action/analyze@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4.37.8

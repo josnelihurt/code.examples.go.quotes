@@ -1,0 +1,117 @@
+# golangci-lint v2 configuration (ADR 0009). The linter set is the dotnet
+# analyzers' analogue; depguard encodes the layering table below (the
+# NetArchTest LayeringTests analogue); gofumpt via `formatters:` is the
+# .editorconfig formatting analogue (`golangci-lint fmt` is the one-command
+# formatter).
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - unused
+    - revive
+    - misspell
+    - copyloopvar
+    - nolintlint
+    - gocritic
+    - depguard
+  settings:
+    depguard:
+      # One rule per layer per bounded context, mirroring the .NET
+      # LayeringTests table. files globs are matched against the file's path
+      # as the analyzer receives it (relative to a working directory, not the
+      # module root), so every pattern is rooted with **/; deny pkg entries
+      # are package path prefixes, so ".../internal/auth" denies the whole
+      # auth context, subpackages included. Only module-internal packages are
+      # named — stdlib and third-party imports are always allowed.
+      rules:
+        quotes-domain:
+          files: ["**/internal/quotes/domain/**"]
+          deny:
+            - pkg: github.com/josnelihurt/code.examples.go.quotes/internal/quotes/application
+              desc: the quotes domain imports nothing from its own upper layers
+            - pkg: github.com/josnelihurt/code.examples.go.quotes/internal/quotes/infrastructure
+              desc: the quotes domain imports nothing from its own upper layers
+            - pkg: github.com/josnelihurt/code.examples.go.quotes/internal/quotes/api
+              desc: the quotes domain imports nothing from its own upper layers
+            - pkg: github.com/josnelihurt/code.examples.go.quotes/internal/auth
+              desc: the quotes domain stays stdlib-only — no other contexts either
+            - pkg: github.com/josnelihurt/code.examples.go.quotes/internal/platform
+              desc: the quotes domain stays stdlib-only — no platform either
+        auth-domain:
+          files: ["**/internal/auth/domain/**"]
+          deny:
+            - pkg: github.com/josnelihurt/code.examples.go.quotes/internal/auth/application
+              desc: the auth domain imports nothing from its own upper layers
+            - pkg: github.com/josnelihurt/code.examples.go.quotes/internal/auth/infrastructure
+              desc: the auth domain imports nothing from its own upper layers
+            - pkg: github.com/josnelihurt/code.examples.go.quotes/internal/auth/api
+              desc: the auth domain imports nothing from its own upper layers
+            - pkg: github.com/josnelihurt/code.examples.go.quotes/internal/quotes
+              desc: the auth domain stays stdlib-only — no other contexts either
+            - pkg: github.com/josnelihurt/code.examples.go.quotes/internal/platform
+              desc: the auth domain stays stdlib-only — no platform either
+        quotes-application:
+          files: ["**/internal/quotes/application/**"]
+          deny:
+            - pkg: github.com/josnelihurt/code.examples.go.quotes/internal/quotes/infrastructure
+              desc: the application layer may not reach into infrastructure
+            - pkg: github.com/josnelihurt/code.examples.go.quotes/internal/quotes/api
+              desc: the application layer may not reach into the api layer
+            - pkg: github.com/josnelihurt/code.examples.go.quotes/internal/auth
+              desc: bounded contexts meet in transport or composition, not in application
+            - pkg: github.com/josnelihurt/code.examples.go.quotes/internal/platform
+              desc: the application layer stays domain-only (the platform kit is composed at the edges)
+        auth-application:
+          files: ["**/internal/auth/application/**"]
+          deny:
+            - pkg: github.com/josnelihurt/code.examples.go.quotes/internal/auth/infrastructure
+              desc: the application layer may not reach into infrastructure
+            - pkg: github.com/josnelihurt/code.examples.go.quotes/internal/auth/api
+              desc: the application layer may not reach into the api layer
+            - pkg: github.com/josnelihurt/code.examples.go.quotes/internal/quotes
+              desc: bounded contexts meet in transport or composition, not in application
+            - pkg: github.com/josnelihurt/code.examples.go.quotes/internal/platform
+              desc: the application layer stays domain-only (the platform kit is composed at the edges)
+        quotes-api:
+          files: ["**/internal/quotes/api/**"]
+          deny:
+            - pkg: github.com/josnelihurt/code.examples.go.quotes/internal/quotes/infrastructure
+              desc: the api layer composes infrastructure only through the composition root
+            - pkg: github.com/josnelihurt/code.examples.go.quotes/internal/auth
+              desc: bounded contexts meet in transport or composition, not in api
+        auth-api:
+          files: ["**/internal/auth/api/**"]
+          deny:
+            - pkg: github.com/josnelihurt/code.examples.go.quotes/internal/auth/infrastructure
+              desc: the api layer composes infrastructure only through the composition root
+            - pkg: github.com/josnelihurt/code.examples.go.quotes/internal/quotes
+              desc: bounded contexts meet in transport or composition, not in api
+        quotes-infrastructure:
+          files: ["**/internal/quotes/infrastructure/**"]
+          deny:
+            - pkg: github.com/josnelihurt/code.examples.go.quotes/internal/quotes/api
+              desc: infrastructure never reaches up into the api layer
+            - pkg: github.com/josnelihurt/code.examples.go.quotes/internal/auth
+              desc: bounded contexts meet in transport or composition, not in infrastructure
+        auth-infrastructure:
+          files: ["**/internal/auth/infrastructure/**"]
+          deny:
+            - pkg: github.com/josnelihurt/code.examples.go.quotes/internal/auth/api
+              desc: infrastructure never reaches up into the api layer
+            - pkg: github.com/josnelihurt/code.examples.go.quotes/internal/quotes
+              desc: bounded contexts meet in transport or composition, not in infrastructure
+        platform:
+          files: ["**/internal/platform/**"]
+          deny:
+            - pkg: github.com/josnelihurt/code.examples.go.quotes/internal/quotes
+              desc: platform is a leaf others compose — it may not depend on the contexts
+            - pkg: github.com/josnelihurt/code.examples.go.quotes/internal/auth
+              desc: platform is a leaf others compose — it may not depend on the contexts
+
+formatters:
+  enable:
+    - gofumpt
