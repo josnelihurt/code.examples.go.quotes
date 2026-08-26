@@ -105,3 +105,38 @@ that binary travels the network at build time). The stage also needs `protoc-gen
 `protoc-gen-go-grpc` and `protoc-gen-grpc-gateway` (v2.30.0 binaries ship for the gateway plugin) —
 installed via `go install <module>@<pin>` in the builder so the generated Go code and the gateway
 runtime come from the versions [ADR 0002](0002-v3-transport-grpc-gateway.md) pins.
+
+## Addendum: toolchain intermediate image (2026-08-26)
+
+* Status: accepted · supersedes the inline download block, keeps every guarantee above.*
+
+**Motivation** (review on the contracts PR): the hermetic `generate` stage re-downloaded and
+re-sha256-verified both binaries on every `contract-drift` CI run and every local re-freeze —
+repeated network work to reconstruct a state that never changes between pin bumps.
+
+**Mechanism change**: download-time checksums became build-time checksums carried by digest
+pinning. The exact download + verify recipe moved verbatim into
+`contracts/docker-build-base/Dockerfile` (single-stage, no ENTRYPOINT, smoke-checks
+`buf --version && protoc-gen-openapiv2 --version`, OCI label records the pin pair); the
+`toolchain` workflow builds it multi-arch (`linux/amd64,linux/arm64`, gha-cached) and publishes
+it as an immutable tag read from `contracts/docker-build-base/VERSION`:
+`ghcr.io/josnelihurt/code.examples.go.quotes/toolchain/contracts:<VERSION>` — an immutable
+version tag plus the digest pinned in `Dockerfile.build`, not a movable `latest`. `Dockerfile.build`
+now `FROM`s that image digest-pinned; the verification ran once, at publish time, and the digest
+carries it forward — every freeze runs exactly the bytes the workflow verified.
+
+**Publish flow** (a pin bump is still a paired, re-freezing change across both repositories):
+
+1. Edit `contracts/docker-build-base/VERSION` + the `ARG`s in its Dockerfile.
+2. Publish — merge to `main` (or `workflow_dispatch`) runs the `toolchain` workflow; its summary
+   prints the pushed digest.
+3. Pin that digest on the `FROM` line of `Dockerfile.build` in the same PR.
+4. Re-freeze via `scripts/update-contracts.sh` and commit the regenerated document.
+
+**The .NET-repo pairing argument is unchanged**: identical binaries over identical inputs remains
+the whole parity story — the binaries are the same two pins, only their provenance moved from
+"downloaded and verified per build" to "published once and pinned by digest"; the local re-freeze
+of the toolchain image reproduced the frozen document byte-for-byte. What weakens slightly is the
+"offline-hermetic" wording above: a freeze now pulls one image from GHCR instead of two binaries
+from GitHub releases — still fully pinned, and the drift job fails closed if the digest ever
+disappears.

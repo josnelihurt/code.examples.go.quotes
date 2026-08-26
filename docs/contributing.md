@@ -170,3 +170,25 @@ scripts/check-conventions.sh --title <text>           # PR title rule
 
 Modes combine; exit codes: `0` clean, `1` violations (all reported), `2` usage
 error.
+
+## Contracts toolchain image
+
+The buf + protoc-gen-openapiv2 pair behind the hermetic OpenAPI freeze is not
+downloaded per build anymore: it lives in the prebuilt toolchain image
+`ghcr.io/josnelihurt/code.examples.go.quotes/toolchain/contracts`, built from
+`contracts/docker-build-base/Dockerfile` and published by the
+`.github/workflows/toolchain.yml` workflow (multi-arch, gha-cached, immutable
+tag). `Dockerfile.build` consumes it `FROM`-pinned by digest, so the checksum
+verification that used to run on every freeze ran once, at publish time.
+
+Bumping the pins is a four-step, one-PR change (still paired with the .NET
+repository's own bump, re-freezing in the same change — see ADR 0003's
+addendum):
+
+1. Edit the pair in both `contracts/docker-build-base/VERSION` (the tag,
+   `<buf>-<openapiv2>`) and the `ARG`s in `contracts/docker-build-base/Dockerfile`.
+2. Publish: merge to `main` or `workflow_dispatch` the toolchain workflow; its
+   job summary prints the pushed digest. (PR runs only compile-validate the
+   image, and only when `contracts/docker-build-base/**` changed.)
+3. Pin that digest: append `@sha256:…` to the `FROM` line of `Dockerfile.build`.
+4. Re-freeze the document with `scripts/update-contracts.sh` and commit it.

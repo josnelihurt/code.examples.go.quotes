@@ -8,44 +8,17 @@
 # The stage is self-contained: only the contract sources and the two pinned binaries —
 # no Go module, nothing from the later transport layers.
 
-# Minimal base with curl + coreutils for the pinned downloads below (bookworm ships
-# coreutils; curl and ca-certificates come from apt). Tag-pinned; digest pinning can
-# follow when the freeze needs it.
-FROM debian:bookworm-slim AS generate
+# The pinned buf + protoc-gen-openapiv2 pair now comes from the prebuilt toolchain
+# image instead of being downloaded + sha256-verified on every freeze: the pins and
+# their checksum verification live in contracts/docker-build-base (Dockerfile + VERSION
+# file), built and published to this repository's GHCR by .github/workflows/toolchain.yml
+# — the digest pin on the FROM line carries the verified state forward, so what ran at
+# publish time is exactly what this stage runs. The parity argument is unchanged: identical
+# binaries over identical inputs (docs/adr/0003-openapi-generation-pipeline.md,
+# addendum), so the versions still move only in paired PRs across both repositories,
+# re-freezing in the same change.
+FROM ghcr.io/josnelihurt/code.examples.go.quotes/toolchain/contracts:1.50.0-2.30.0@sha256:79769b77c7867131c38a18cf1cf1891c447574590294688b4ae03111e11c9dd2 AS generate
 WORKDIR /contracts
-
-# Same pins the .NET Dockerfile.build uses: identical binaries over identical inputs is
-# the whole byte-parity argument (docs/adr/0003-openapi-generation-pipeline.md), so the
-# versions move only in paired PRs across both repositories, re-freezing in the same
-# change. Both binaries are verified against their published checksums because they
-# travel the network at build time.
-ARG BUF_VERSION=v1.50.0
-ARG OPENAPIV2_VERSION=v2.30.0
-# Native arch per host (the same case mapping the .NET stage uses): the ubuntu CI
-# runners resolve x86_64 — that is the parity the freeze protects — while local arm64
-# podman machines get native binaries instead of qemu-emulated amd64 ones (emulated Go
-# binaries crash). The generators are deterministic and the document carries no arch
-# stamp, so both arches freeze identical bytes.
-RUN case "$(uname -m)" in \
-      x86_64) GOARCH=x86_64;; \
-      aarch64) GOARCH=arm64;; \
-      *) echo "unsupported arch $(uname -m)" >&2; exit 1;; \
-    esac \
- && apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates curl \
- && rm -rf /var/lib/apt/lists/* \
- && curl -fsSL -o /usr/local/bin/buf \
-      "https://github.com/bufbuild/buf/releases/download/${BUF_VERSION}/buf-Linux-$(uname -m)" \
- && chmod +x /usr/local/bin/buf \
- && test "$(sha256sum /usr/local/bin/buf | cut -d' ' -f1)" = \
-        "$(curl -fsSL "https://github.com/bufbuild/buf/releases/download/${BUF_VERSION}/sha256.txt" \
-          | grep "buf-Linux-$(uname -m)$" | cut -d' ' -f1)" \
- && curl -fsSL -o /usr/local/bin/protoc-gen-openapiv2 \
-      "https://github.com/grpc-ecosystem/grpc-gateway/releases/download/v${OPENAPIV2_VERSION#v}/protoc-gen-openapiv2-v${OPENAPIV2_VERSION#v}-linux-${GOARCH}" \
- && chmod +x /usr/local/bin/protoc-gen-openapiv2 \
- && test "$(sha256sum /usr/local/bin/protoc-gen-openapiv2 | cut -d' ' -f1)" = \
-        "$(curl -fsSL "https://github.com/grpc-ecosystem/grpc-gateway/releases/download/v${OPENAPIV2_VERSION#v}/grpc-gateway_${OPENAPIV2_VERSION#v}_checksums.txt" \
-          | grep "protoc-gen-openapiv2-v${OPENAPIV2_VERSION#v}-linux-${GOARCH}" | cut -d' ' -f1)"
 
 COPY contracts/quotes/v3 ./
 
