@@ -1,0 +1,23 @@
+# sqlc configuration (ADR 0007): reviewed SQL in, type-checked Go out. The
+# schema is the golang-migrate up-migration (down migrations are skipped by
+# filename convention), the queries are the repository's statements, and the
+# generated code is committed so CI builds without the tool. Regenerate with:
+#   sqlc generate   (v1.31.1, `go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1`)
+version: "2"
+sql:
+  - engine: "postgresql"
+    schema: "migrations"
+    queries: "internal/quotes/infrastructure/queries.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/quotes/infrastructure/db"
+        sql_package: "pgx/v5"
+        emit_json_tags: false
+        emit_pointers_for_null_types: false
+        overrides:
+          # pgx/v5 maps timestamptz to pgtype.Timestamptz by default; the
+          # adapter speaks time.Time (pgx encodes it natively) so the record
+          # stays a plain value outside the db package.
+          - column: "quotes.created_at_utc"
+            go_type: "time.Time"
