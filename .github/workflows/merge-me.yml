@@ -1,0 +1,76 @@
+name: merge-me
+
+# Trigger-only wrapper: the evaluation logic, its semantics and its rationale
+# live in code.examples.ci (merge-me action, v1). Only the wiring stays here —
+# workflow_run events fire solely for workflows on this repository's default
+# branch, so the trigger shell cannot be centralized. The workflow name must
+# stay "merge-me": the shared script excludes its own workflow from check
+# verdicts by that name.
+on:
+  pull_request:
+    types: [labeled, synchronize, reopened, unlabeled]
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: "PR number to evaluate (blank = every open labeled PR)"
+        required: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: merge-me-${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || github.event.pull_request.number || github.event.inputs.pr || 'manual' }}
+  cancel-in-progress: true
+
+jobs:
+  merge:
+    if: github.event_name == 'pull_request'
+    name: evaluate (label / push / reopen / unlabel)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: josnelihurt/code.examples.ci/merge-me@135d13c5c828eaa81b2cb1b8c752ad0e3bb17caf # v1.1
+        with:
+          pr: ${{ github.event.pull_request.number }}
+          disarm: ${{ github.event.action == 'unlabeled' }}
+
+  on-ci-completion:
+    if: github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success'
+    name: evaluate (ci completed)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Resolve the PR whose CI just completed
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          pr="$(gh pr list --repo "${GITHUB_REPOSITORY}" --head "${HEAD_BRANCH}" --state open --json number --jq '.[0].number' || true)"
+          if [[ -z "${pr}" ]]; then
+            echo "no open PR for head branch ${HEAD_BRANCH} — nothing to do"
+            echo 'pr=' >> "$GITHUB_OUTPUT"
+          else
+            echo "pr=${pr}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: josnelihurt/code.examples.ci/merge-me@135d13c5c828eaa81b2cb1b8c752ad0e3bb17caf # v1.1
+        if: steps.resolve.outputs.pr != ''
+        with:
+          pr: ${{ steps.resolve.outputs.pr }}
+          wait-minutes: '0'
+
+  on-demand:
+    if: github.event_name == 'workflow_dispatch'
+    name: evaluate (manual)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: josnelihurt/code.examples.ci/merge-me@135d13c5c828eaa81b2cb1b8c752ad0e3bb17caf # v1.1
+        with:
+          pr: ${{ github.event.inputs.pr }}
+          all: ${{ github.event.inputs.pr == '' }}
