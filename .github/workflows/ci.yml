@@ -32,10 +32,10 @@ jobs:
   #
   # The filters below describe the repository's end-state Go layout; the gated
   # jobs that consume them land with the layers that make them load-bearing —
-  # build & test, lint (golangci-lint), CodeQL, BDD specs, full-stack e2e and
-  # image-pin checks — each adding its decide output in the same PR that adds
-  # the job. Contract drift is gated from the layer that adds the frozen
-  # document.
+  # build & test, lint (golangci-lint), CodeQL, BDD specs, full-stack e2e,
+  # image-pin checks and the documentation gate — each adding its decide
+  # output in the same PR that adds the job. Contract drift is gated from the
+  # layer that adds the frozen document.
   changes:
     name: detect changed paths
     runs-on: ubuntu-latest
@@ -52,6 +52,7 @@ jobs:
       run_e2e: ${{ steps.decide.outputs.run_e2e }}
       run_contract_drift: ${{ steps.decide.outputs.run_contract_drift }}
       run_image_pins: ${{ steps.decide.outputs.run_image_pins }}
+      run_docs: ${{ steps.decide.outputs.run_docs }}
     steps:
       # Only pull_request diffs are filtered; the API listing needs no checkout. On
       # every other trigger (push to main, ci:full-build) the step is skipped and the
@@ -95,6 +96,19 @@ jobs:
               - 'docker-compose.yaml'
               - 'Dockerfile.authapi'
               - 'Dockerfile.quotesapi'
+            docs:
+              # Everything the documentation gate consumes: the Docsify pages,
+              # the README story, the per-component readmes and the contracts
+              # pointer page. The gate itself (verify-docs) also reads code
+              # files, but a code edit that breaks a documented claim is the
+              # docs job's business only when the claim's page changed — the
+              # verify runs against the whole tree either way.
+              - 'docs/**'
+              - 'README.md'
+              - 'cmd/**/README.md'
+              - 'internal/**/README.md'
+              - 'tests/README.md'
+              - 'contracts/*.md'
             workflow:
               # CI itself or a script it executes: run the unfiltered matrix.
               - '.github/workflows/**'
@@ -105,6 +119,9 @@ jobs:
               - 'scripts/check-image-tags.sh'
               - 'scripts/bdd.sh'
               - 'scripts/e2e.sh'
+              - 'scripts/verify-docs.sh'
+              - 'scripts/verify-docs-links.py'
+              - 'scripts/verify-docs-refs.py'
 
       # The decide pattern: the filter results fold into run_* outputs that gate
       # the matrix jobs (conventions and secrets-hygiene are ungated by design).
@@ -120,6 +137,7 @@ jobs:
           FILTER_CONTRACTS: ${{ steps.filter.outputs.contracts }}
           FILTER_PINS: ${{ steps.filter.outputs.pins }}
           FILTER_WORKFLOW: ${{ steps.filter.outputs.workflow }}
+          FILTER_DOCS: ${{ steps.filter.outputs.docs }}
         run: |
           set -euo pipefail
           decisions=""
@@ -136,6 +154,7 @@ jobs:
             out "run_e2e=true"
             out "run_contract_drift=true"
             out "run_image_pins=true"
+            out "run_docs=true"
             flush
             exit 0
           fi
@@ -172,6 +191,11 @@ jobs:
           # The image pins cover every container the topology can boot: the pin
           # file, the compose file and the two API Dockerfiles that quote them.
           out "run_image_pins=${pins}"
+
+          # The documentation gate reads the pages plus the tree they cite;
+          # only a docs/readme edit (or the workflow filter, handled above)
+          # pays for it.
+          out "run_docs=${FILTER_DOCS:-false}"
           flush
 
   # Branch names, commit subjects and PR titles are rules about the change itself,
@@ -282,6 +306,22 @@ jobs:
       # two different images across CI, e2e and laptops.
       - name: Check pins against the compose topology
         run: ./scripts/check-image-tags.sh
+
+  # The documentation gate (issue #11): every markdown link and heading anchor
+  # resolves, and every backticked repo path, route and identifier the pages
+  # cite exists in the code. Mermaid rendering stays a local pass
+  # (SKIP_MERMAID) — it downloads Chromium; the syntax the renderer checks is
+  # still exercised by the same script on laptops.
+  docs:
+    name: docs (links + code references)
+    runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.run_docs == 'true'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Verify the documentation set
+        run: ./scripts/verify-docs.sh --skip-mermaid
 
   build-and-test:
     name: build & test (race + coverage)
