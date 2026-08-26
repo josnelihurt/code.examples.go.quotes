@@ -1,0 +1,26 @@
+# The BDD harness's compose overlay (ADR 0008): layered over
+# docker-compose.yaml by scripts/bdd.sh (and the CI specs job) under the
+# quotes-bdd project name, so the specification stack never collides with a
+# developer's own `start.sh` project.
+#
+#   - quotesapi and authapi publish their container ports on host 8090/8091:
+#     the edge routes only the /api prefixes, so the documentation surfaces
+#     (/openapi/v3.json, /scalar) and the health endpoints are addressed on
+#     the services themselves (the .NET suite's service-direct calls).
+#   - The edge keeps docker-compose.yaml's parameterized host port
+#     (QUOTES_EDGE_PORT, default 8080) — scripts/bdd.sh sets it when the
+#     default is busy and exports the matching BDD_BASE_URL.
+#   - The login rate limit is raised to the value the .NET spec environment
+#     used: the suite signs in per scenario through one edge IP, and the
+#     development default (10 per 30s) would 429 the background steps
+#     mid-run. The 429 shape itself is pinned by the unit tests.
+services:
+  quotesapi:
+    ports:
+      - "${BDD_QUOTES_API_PORT:-8090}:8080"
+
+  authapi:
+    ports:
+      - "${BDD_AUTH_API_PORT:-8091}:8080"
+    environment:
+      RATELIMITING__AUTH__PERMITLIMIT: "100"
