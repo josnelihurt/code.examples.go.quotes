@@ -68,7 +68,7 @@ jobs:
               - 'go.mod'
               - 'go.sum'
               - 'sqlc.yaml'
-              - 'migrations/**'
+              - 'internal/quotes/infrastructure/migrations/**'
               - '.golangci.yml'
               - 'Makefile'
             frontend:
