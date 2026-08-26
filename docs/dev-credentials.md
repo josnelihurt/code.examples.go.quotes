@@ -23,6 +23,20 @@ AUTH_SIGNING_KEY=any-value-of-at-least-32-bytes ./scripts/start.sh
 
 Any value of at least 32 bytes is accepted outside Production (`internal/platform/config`); Production startup rejects the documented development key and every shorter value.
 
+## E2E throwaway values
+
+The full-stack Playwright run (`scripts/e2e.sh`) needs its own `E2E_SIGNING_KEY` — any
+value of at least 32 characters, never reused from this page:
+
+```bash
+export E2E_SIGNING_KEY="local-e2e-<your-random-32-plus-chars>"
+./scripts/e2e.sh
+```
+
+CI synthesizes an ephemeral key from the run id. The throwaway catalog's connection
+values (loopback port, user, password, database) live in `scripts/e2e.env` — the one
+copy shared by the script and the CI job; they are disposable by design.
+
 ## Rules
 
 1. New non-Production credentials are documented **here** or they do not exist; the grep gate fails CI on literals outside this file, the implementing code, and tests.

@@ -1,7 +1,7 @@
 # Developer entry points. CI runs the same commands (build/test/lint), so a
 # green laptop means a green build.
 
-.PHONY: help build test test-db lint tidy contracts-go
+.PHONY: help build test test-db bdd lint tidy contracts-go
 
 # The podman machine's API socket, when one is running — the database
 # integration tests need a container runtime and otherwise skip themselves.
@@ -21,6 +21,9 @@ test: ## Run every test with the race detector and coverage
 test-db: ## Run the database integration tests against a local container runtime
 	DOCKER_HOST='$(if $(PODMAN_SOCKET),unix://$(PODMAN_SOCKET),$(DOCKER_HOST))' \
 		go test ./internal/quotes/infrastructure/... -race -count=1
+
+bdd: ## Run the specification suite against the compose stack (scripts/bdd.sh)
+	./scripts/bdd.sh
 
 lint: ## Run the committed golangci-lint configuration
 	golangci-lint run

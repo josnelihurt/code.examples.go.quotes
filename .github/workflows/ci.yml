@@ -48,6 +48,8 @@ jobs:
       run_build_and_test: ${{ steps.decide.outputs.run_build_and_test }}
       run_lint: ${{ steps.decide.outputs.run_lint }}
       run_codeql: ${{ steps.decide.outputs.run_codeql }}
+      run_specs: ${{ steps.decide.outputs.run_specs }}
+      run_e2e: ${{ steps.decide.outputs.run_e2e }}
       run_contract_drift: ${{ steps.decide.outputs.run_contract_drift }}
       run_image_pins: ${{ steps.decide.outputs.run_image_pins }}
     steps:
@@ -101,12 +103,13 @@ jobs:
               - 'ci'
               - 'scripts/lint.sh'
               - 'scripts/check-image-tags.sh'
+              - 'scripts/bdd.sh'
+              - 'scripts/e2e.sh'
 
       # The decide pattern: the filter results fold into run_* outputs that gate
       # the matrix jobs (conventions and secrets-hygiene are ungated by design).
-      # Contract drift, build & test, lint, CodeQL and image pins are the gated
-      # consumers landed so far; later layers extend the step with their outputs
-      # (run_specs, run_e2e) as each consuming job lands.
+      # Contract drift, build & test, lint, CodeQL, image pins and the two
+      # container-booted suites (specs, e2e) are the gated consumers.
       - name: Decide which jobs run
         id: decide
         env:
@@ -129,6 +132,8 @@ jobs:
             out "run_build_and_test=true"
             out "run_lint=true"
             out "run_codeql=true"
+            out "run_specs=true"
+            out "run_e2e=true"
             out "run_contract_drift=true"
             out "run_image_pins=true"
             flush
@@ -136,6 +141,7 @@ jobs:
           fi
 
           backend="${FILTER_BACKEND:-false}"
+          frontend="${FILTER_FRONTEND:-false}"
           pins="${FILTER_PINS:-false}"
 
           # The repository-contract tests parse scripts/images.env at runtime, so
@@ -146,6 +152,17 @@ jobs:
           out "run_build_and_test=${run_build_and_test}"
           out "run_lint=${backend}"
           out "run_codeql=${backend}"
+
+          # specs boots the pinned compose images, so a pin move must reach it
+          # even without code changes; e2e additionally builds both APIs and
+          # runs the SPA from the frontend submodule, so a pointer move means
+          # the full-stack journey must re-run (parity with the .NET gates).
+          run_specs="false"
+          if [ "${backend}" = "true" ] || [ "${pins}" = "true" ]; then run_specs="true"; fi
+          run_e2e="false"
+          if [ "${backend}" = "true" ] || [ "${frontend}" = "true" ] || [ "${pins}" = "true" ]; then run_e2e="true"; fi
+          out "run_specs=${run_specs}"
+          out "run_e2e=${run_e2e}"
 
           # The frozen document under docs/openapi drifts only through the contract
           # inputs: the proto sources, the vendored protos, the export image and the
@@ -193,40 +210,43 @@ jobs:
 
       # The seed's scaffolding credentials (this port serves the same frontend and
       # the same local users, so the literals carry over) live in exactly one
-      # documentation location (docs/dev-credentials.md), one code location per
-      # credential (the implementing type, refused in Production), and the tests
-      # that authenticate against them. Everything else fails: a literal that
-      # exists only to be copy-pasted is how forks leak.
+      # documentation location (docs/dev-credentials.md; the auth ADR names the
+      # public dev key in prose), one code location per credential (the
+      # implementing types — the credential table and the public dev signing
+      # key constant — both refused in Production), and the tests that
+      # authenticate against them (the specification features carry the .NET
+      # wording verbatim). Everything else fails: a literal that exists only
+      # to be copy-pasted is how forks leak. Every path below must exist in
+      # this repository — a stale exclude either aborts git grep on the
+      # runner's git (hidden by the action's `|| true`) or, on newer gits,
+      # leaves the repository's own literals unlisted. Both spell a broken
+      # allowlist, so every exclude names a path that exists here.
       - uses: josnelihurt/code.examples.ci/secrets-hygiene@914ce2f68120ace140da1a445d44e854c97fb168 # v1
         with:
           pattern: 'supersecret|readsecret|Dev-Signing-Key|AspireQuotes-Local2!'
           exclude: |
-            **/bin/**
-            **/obj/**
             .github/workflows/ci.yml
-            tests/**
             docs/dev-credentials.md
-            src/Auth/Auth.Infrastructure/HardcodedCredentialStore.cs
-            src/Auth/Auth.Infrastructure/README.md
-            src/ServiceDefaults/JwtAuthExtensions.cs
-            src/ServiceDefaults/README.md
+            docs/adr/0006-auth-and-errors.md
+            internal/auth/infrastructure/credentialstore.go
+            internal/auth/infrastructure/credentialstore_test.go
+            cmd/authapi/main_test.go
+            internal/platform/config/config.go
+            tests/**
           hint: 'Consolidate them into docs/dev-credentials.md (see the allowlist in ci.yml).'
 
       # The throwaway e2e catalog credentials have exactly one home —
       # scripts/e2e.env — so changing them can never mean editing three files
-      # in sync. The sealed world inside Dockerfile.build's export stage and
-      # the tests are the only other allowed homes.
+      # in sync; the compose topology carries its own (different) development
+      # values and this workflow quotes none of them as literals. As above,
+      # every exclude names a path that exists at this layer (see step 1).
       - uses: josnelihurt/code.examples.ci/secrets-hygiene@914ce2f68120ace140da1a445d44e854c97fb168 # v1
         with:
           pattern: 'POSTGRES_PASSWORD=postgres|Password=postgres|PASSWORD .postgres.'
           exclude: |
-            **/bin/**
-            **/obj/**
-            **/pnpm-lock.yaml
             .github/workflows/ci.yml
             scripts/e2e.env
-            Dockerfile.build
-            tests/**
+            docker-compose.yaml
           hint: 'Consolidate them into scripts/e2e.env (see the allowlist in ci.yml).'
 
   contract-drift:
@@ -333,3 +353,75 @@ jobs:
         uses: github/codeql-action/autobuild@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4.37.8
 
       - uses: github/codeql-action/analyze@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4.37.8
+
+  # The godog specification suite against the real compose stack: postgres +
+  # both APIs + the Traefik edge, built and waited on by scripts/bdd.sh under
+  # the quotes-bdd project (the .NET specs job's Aspire.Hosting.Testing role,
+  # expressed with the compose topology this port has). Slower than
+  # build-and-test on purpose — it proves cross-service journeys.
+  specs:
+    name: specs (BDD against the compose stack)
+    runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.run_specs == 'true'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+
+      # The runner script brings the stack up (docker compose up --build
+      # --wait over docker-compose.yaml + the BDD overlay), runs
+      # `go test ./tests/bdd/...` with the BDD_* environment, and tears the
+      # project down on exit — the same entry point developers use.
+      - run: ./scripts/bdd.sh
+
+  # The full-stack browser suite: the frontend submodule's Playwright
+  # features driven through the real Go APIs and a throwaway PostgreSQL
+  # (scripts/e2e.sh builds the binaries, starts the catalog and both API
+  # processes, then runs Vite + Chromium). The SPA's own lint/unit gates
+  # live in code.examples.frontend.quotes's CI; this job is the integration.
+  e2e:
+    name: e2e (full-stack Playwright against the Go APIs)
+    runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.run_e2e == 'true'
+    env:
+      # Ephemeral per-run key for the two local API processes scripts/e2e.sh
+      # starts; the local-development guidance lives in
+      # docs/dev-credentials.md, never committed as a literal.
+      E2E_SIGNING_KEY: ci-run-${{ github.run_id }}-${{ github.run_attempt }}-0123456789abcdef
+    steps:
+      # The SPA under test is the frontend submodule; its default e2e is the
+      # mocked suite (that repository's CI), this job runs the full-stack
+      # configuration against this backend.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          package_json_file: frontend/package.json
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      # One entry point builds the binaries, starts the throwaway catalog
+      # from scripts/e2e.env + scripts/images.env, runs the suite and tears
+      # everything down — the same script developers run locally.
+      - run: ./scripts/e2e.sh
+
+      - name: Upload playwright report
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: failure()
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/

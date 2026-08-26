@@ -88,7 +88,10 @@ services:
       - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
       - ./traefik/dynamic.yml:/etc/traefik/dynamic/dynamic.yml:ro
     ports:
-      - "8080:80"
+      # QUOTES_EDGE_PORT moves the whole stack's front door when 8080 is
+      # busy (the BDD overlay under scripts/bdd.sh does exactly that); the
+      # default keeps the .NET gateway parity URL.
+      - "${QUOTES_EDGE_PORT:-8080}:80"
     depends_on:
       - authapi
       - quotesapi
