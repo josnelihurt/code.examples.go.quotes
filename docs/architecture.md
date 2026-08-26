@@ -147,3 +147,33 @@ Logging is slog JSON, telemetry is OpenTelemetry on only when
 `OTEL_EXPORTER_OTLP_ENDPOINT` is set (ADR 0005) — [observability](observability.md).
 The catalog is PostgreSQL behind sqlc + pgx + golang-migrate with migration-at-boot
 (ADR 0007) — [data storage](data-storage.md).
+
+## Layout deviations
+
+The repository departs from `golang-standards/project-layout` in three places. That
+document is a community convention rather than a Go team standard, and each departure
+below was reviewed and kept deliberately. They are recorded here so a reader — or a
+review agent — does not have to re-derive the reasoning.
+
+**`tests/` rather than `test/`.** The convention names the directory `test/`. Renaming it
+would reach `scripts/bdd.sh`, `scripts/e2e.sh`, `scripts/verify-docs.sh`, two path
+filters in `.github/workflows/ci.yml`, and the allowlist inside the shared
+[code.examples.ci](https://github.com/josnelihurt/code.examples.ci) submodule — a second
+repository. The rename buys a convention and costs a cross-repository change, so the
+directory stays.
+
+**`contracts/` rather than `api/`.** Also deliberate, and for a stronger reason:
+`contracts/` is the name the sibling repositories use for the same concept, so the
+consistency that matters here is across the three repositories rather than with the
+layout document.
+
+**Layer package names repeat across bounded contexts.** `domain`, `application`,
+`infrastructure` and `api` each exist twice — once under `internal/quotes/` and once
+under `internal/auth/` — so composition roots import two packages with one name and must
+alias one (`authinfra` in `cmd/quotesapi/main.go`). That is the price of the
+bounded-context layout the depguard table enforces, and it is worth paying: the
+alternative is prefixing every package with its context and reading
+`quotesdomain.Quote` everywhere the layering already makes obvious.
+
+A fourth case — a Go package living under `docs/` — is recorded where the decision
+belongs, in [ADR 0003](adr/0003-openapi-generation-pipeline.md).

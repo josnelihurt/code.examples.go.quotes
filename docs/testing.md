@@ -88,3 +88,20 @@ concurrency-free core should never have data races.
 - **e2e** — the SPA's sign-in, random-quote, catalog and publish journeys against the
   v3 transport; scenarios pinning v0/v1/v2 are excluded by name in
   `tests/e2e/playwright.config.ts`
+
+## On `t.Parallel()`
+
+No test in this repository calls `t.Parallel()`, and that is a choice rather than an
+oversight. The suites that dominate wall-clock time are the ones that cannot run in
+parallel anyway: the database integration tests share a single migrated container per
+package, the wire tests share one composed `httptest` server per harness, and the
+specification suite drives one compose stack over fixed host ports. Running those cases
+concurrently would make them share mutable state — a seeded catalog, a rate-limiter
+window — and trade a few seconds for intermittent failures.
+
+The genuinely independent tests are the domain unit tests, which already finish in
+around two seconds for the whole package. There is nothing to reclaim there.
+
+So: do not add `t.Parallel()` piecemeal. If a future package is both slow and free of
+shared state, parallelising it is fine — say so in the test file, because the default
+here is sequential on purpose.
