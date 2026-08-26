@@ -1,0 +1,57 @@
+# syntax=docker/dockerfile:1
+
+# Hermetic OpenAPI freeze for the v3 quotes contract: buf feeds the proto's descriptors
+# (leading comments + google.api.http rules + openapiv2 options) to protoc-gen-openapiv2,
+# and the generated Swagger 2.0 document is committed under docs/openapi/ — generated,
+# never hand-edited. Extract with ./scripts/update-contracts.sh (podman|docker build +
+# copy out of the scratch stage); CI re-runs the same build in the contract-drift job.
+# The stage is self-contained: only the contract sources and the two pinned binaries —
+# no Go module, nothing from the later transport layers.
+
+# Minimal base with curl + coreutils for the pinned downloads below (bookworm ships
+# coreutils; curl and ca-certificates come from apt). Tag-pinned; digest pinning can
+# follow when the freeze needs it.
+FROM debian:bookworm-slim AS generate
+WORKDIR /contracts
+
+# Same pins the .NET Dockerfile.build uses: identical binaries over identical inputs is
+# the whole byte-parity argument (docs/adr/0003-openapi-generation-pipeline.md), so the
+# versions move only in paired PRs across both repositories, re-freezing in the same
+# change. Both binaries are verified against their published checksums because they
+# travel the network at build time.
+ARG BUF_VERSION=v1.50.0
+ARG OPENAPIV2_VERSION=v2.30.0
+# Native arch per host (the same case mapping the .NET stage uses): the ubuntu CI
+# runners resolve x86_64 — that is the parity the freeze protects — while local arm64
+# podman machines get native binaries instead of qemu-emulated amd64 ones (emulated Go
+# binaries crash). The generators are deterministic and the document carries no arch
+# stamp, so both arches freeze identical bytes.
+RUN case "$(uname -m)" in \
+      x86_64) GOARCH=x86_64;; \
+      aarch64) GOARCH=arm64;; \
+      *) echo "unsupported arch $(uname -m)" >&2; exit 1;; \
+    esac \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates curl \
+ && rm -rf /var/lib/apt/lists/* \
+ && curl -fsSL -o /usr/local/bin/buf \
+      "https://github.com/bufbuild/buf/releases/download/${BUF_VERSION}/buf-Linux-$(uname -m)" \
+ && chmod +x /usr/local/bin/buf \
+ && test "$(sha256sum /usr/local/bin/buf | cut -d' ' -f1)" = \
+        "$(curl -fsSL "https://github.com/bufbuild/buf/releases/download/${BUF_VERSION}/sha256.txt" \
+          | grep "buf-Linux-$(uname -m)$" | cut -d' ' -f1)" \
+ && curl -fsSL -o /usr/local/bin/protoc-gen-openapiv2 \
+      "https://github.com/grpc-ecosystem/grpc-gateway/releases/download/v${OPENAPIV2_VERSION#v}/protoc-gen-openapiv2-v${OPENAPIV2_VERSION#v}-linux-${GOARCH}" \
+ && chmod +x /usr/local/bin/protoc-gen-openapiv2 \
+ && test "$(sha256sum /usr/local/bin/protoc-gen-openapiv2 | cut -d' ' -f1)" = \
+        "$(curl -fsSL "https://github.com/grpc-ecosystem/grpc-gateway/releases/download/v${OPENAPIV2_VERSION#v}/grpc-gateway_${OPENAPIV2_VERSION#v}_checksums.txt" \
+          | grep "protoc-gen-openapiv2-v${OPENAPIV2_VERSION#v}-linux-${GOARCH}" | cut -d' ' -f1)"
+
+COPY contracts/quotes/v3 ./
+
+RUN buf generate --path quotes_v3.proto \
+ && mkdir -p /out/docs/openapi \
+ && cp /tmp/quotes_v3.swagger.json /out/docs/openapi/quotes-v3.openapi.json
+
+FROM scratch AS contracts
+COPY --from=generate /out/docs/openapi/quotes-v3.openapi.json /docs/openapi/quotes-v3.openapi.json
