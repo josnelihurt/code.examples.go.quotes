@@ -15,7 +15,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/josnelihurt/code.examples.go.quotes/internal/platform/telemetry"
-	contractv3 "github.com/josnelihurt/code.examples.go.quotes/internal/quotes/api/v3/contract"
+	"github.com/josnelihurt/code.examples.go.quotes/internal/quotes/api/v3/contract"
 	"github.com/josnelihurt/code.examples.go.quotes/internal/quotes/application"
 	"github.com/josnelihurt/code.examples.go.quotes/internal/quotes/domain"
 )
@@ -26,7 +26,7 @@ import (
 // page size), an explicit one passes through untouched so page=0 reaches the
 // use case and answers the invalid-page rejection like every other version.
 type Service struct {
-	contractv3.UnimplementedQuoteServiceServer
+	contract.UnimplementedQuoteServiceServer
 
 	random  *application.GetRandomQuoteUseCase
 	byID    *application.GetQuoteByIDUseCase
@@ -49,7 +49,7 @@ func NewService(
 }
 
 // GetRandomQuote returns a random quote from the catalog.
-func (s *Service) GetRandomQuote(ctx context.Context, _ *contractv3.GetRandomQuoteRequest) (*contractv3.Quote, error) {
+func (s *Service) GetRandomQuote(ctx context.Context, _ *contract.GetRandomQuoteRequest) (*contract.Quote, error) {
 	quote, err := s.random.Execute(ctx)
 	if err != nil {
 		s.metrics.RecordQuotesRandom(ctx, outcomeFor(err))
@@ -60,7 +60,7 @@ func (s *Service) GetRandomQuote(ctx context.Context, _ *contractv3.GetRandomQuo
 }
 
 // ListQuotes lists one page of the catalog in stable order.
-func (s *Service) ListQuotes(ctx context.Context, req *contractv3.ListQuotesRequest) (*contractv3.ListQuotesResponse, error) {
+func (s *Service) ListQuotes(ctx context.Context, req *contract.ListQuotesRequest) (*contract.ListQuotesResponse, error) {
 	// Presence is the pointer: nil means the client sent nothing (defaults
 	// apply — page 1, the domain's default page size), a non-nil zero is a sent
 	// zero the use case rejects.
@@ -84,7 +84,7 @@ func (s *Service) ListQuotes(ctx context.Context, req *contractv3.ListQuotesRequ
 // GetQuoteById returns one quote by id.
 //
 //nolint:revive // GetQuoteById is the rpc's name in the generated contract
-func (s *Service) GetQuoteById(ctx context.Context, req *contractv3.GetQuoteByIdRequest) (*contractv3.Quote, error) {
+func (s *Service) GetQuoteById(ctx context.Context, req *contract.GetQuoteByIdRequest) (*contract.Quote, error) {
 	quote, err := s.byID.Execute(ctx, req.GetId())
 	if err != nil {
 		s.metrics.RecordQuotesGetByID(ctx, outcomeFor(err))
@@ -96,7 +96,7 @@ func (s *Service) GetQuoteById(ctx context.Context, req *contractv3.GetQuoteById
 
 // CreateQuote adds a quote to the catalog. The gateway answers 200 with the
 // created quote — the HTTP rules have no way to express 201 + Location.
-func (s *Service) CreateQuote(ctx context.Context, req *contractv3.CreateQuoteRequest) (*contractv3.Quote, error) {
+func (s *Service) CreateQuote(ctx context.Context, req *contract.CreateQuoteRequest) (*contract.Quote, error) {
 	quote, err := s.create.Execute(ctx, application.CreateQuoteCommand{
 		Text:   req.GetText(),
 		Author: req.GetAuthor(),
@@ -148,8 +148,8 @@ func outcomeFor(err error) string {
 }
 
 // quoteMessage projects a transport DTO onto the contract message.
-func quoteMessage(quote application.QuoteDto) *contractv3.Quote {
-	return &contractv3.Quote{
+func quoteMessage(quote application.QuoteDto) *contract.Quote {
+	return &contract.Quote{
 		Id:     quote.ID,
 		Text:   quote.Text,
 		Author: quote.Author,
@@ -159,12 +159,12 @@ func quoteMessage(quote application.QuoteDto) *contractv3.Quote {
 // pageMessage projects a page DTO. The paging scalars are always set: they
 // are `optional` in the contract precisely so the writer emits them on page
 // one ("page":1) — the regression the declaration exists to prevent.
-func pageMessage(page application.QuotePageDto) *contractv3.ListQuotesResponse {
-	items := make([]*contractv3.Quote, 0, len(page.Items))
+func pageMessage(page application.QuotePageDto) *contract.ListQuotesResponse {
+	items := make([]*contract.Quote, 0, len(page.Items))
 	for _, quote := range page.Items {
 		items = append(items, quoteMessage(quote))
 	}
-	return &contractv3.ListQuotesResponse{
+	return &contract.ListQuotesResponse{
 		Items:      items,
 		Page:       int32Ptr(int32(page.Page)),
 		PageSize:   int32Ptr(int32(page.PageSize)),

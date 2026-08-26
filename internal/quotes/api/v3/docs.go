@@ -3,7 +3,7 @@ package v3
 import (
 	"net/http"
 
-	openapiembed "github.com/josnelihurt/code.examples.go.quotes/docs/openapi"
+	"github.com/josnelihurt/code.examples.go.quotes/docs/openapi"
 )
 
 // OpenAPIPath and ScalarPath are the transport's documentation routes —
@@ -18,7 +18,7 @@ const (
 func serveOpenAPIDocument(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(openapiembed.QuotesV3JSON)
+	_, _ = w.Write(openapi.QuotesV3JSON)
 }
 
 // scalarPage adapts the docsify site's Scalar reference page (docs/scalar in

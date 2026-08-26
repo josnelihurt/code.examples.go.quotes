@@ -16,7 +16,7 @@ syntax = "proto3";
 
 package quotes.v3;
 
-option go_package = "github.com/josnelihurt/code.examples.go.quotes/internal/quotes/api/v3/contract;contractv3";
+option go_package = "github.com/josnelihurt/code.examples.go.quotes/internal/quotes/api/v3/contract;contract";
 
 import "google/api/annotations.proto";
 import "protoc-gen-openapiv2/options/annotations.proto";

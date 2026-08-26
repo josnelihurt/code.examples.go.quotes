@@ -19,7 +19,7 @@
 // 	protoc        (unknown)
 // source: quotes_v3.proto
 
-package contractv3
+package contract
 
 import (
 	_ "github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/options"
@@ -413,7 +413,7 @@ const file_quotes_v3_proto_rawDesc = "" +
 	"ListQuotes\x12\x1c.quotes.v3.ListQuotesRequest\x1a\x1d.quotes.v3.ListQuotesResponse\"\x16\x82\xd3\xe4\x93\x02\x10\x12\x0e/api/v3/quotes\x12]\n" +
 	"\fGetQuoteById\x12\x1e.quotes.v3.GetQuoteByIdRequest\x1a\x10.quotes.v3.Quote\"\x1b\x82\xd3\xe4\x93\x02\x15\x12\x13/api/v3/quotes/{id}\x12c\n" +
 	"\x0eGetRandomQuote\x12 .quotes.v3.GetRandomQuoteRequest\x1a\x10.quotes.v3.Quote\"\x1d\x82\xd3\xe4\x93\x02\x17\x12\x15/api/v3/quotes/random\x12Y\n" +
-	"\vCreateQuote\x12\x1d.quotes.v3.CreateQuoteRequest\x1a\x10.quotes.v3.Quote\"\x19\x82\xd3\xe4\x93\x02\x13:\x01*\"\x0e/api/v3/quotesB\x92\x06\x92A\xb3\x05\x12\x82\x04\n" +
+	"\vCreateQuote\x12\x1d.quotes.v3.CreateQuoteRequest\x1a\x10.quotes.v3.Quote\"\x19\x82\xd3\xe4\x93\x02\x13:\x01*\"\x0e/api/v3/quotesB\x90\x06\x92A\xb3\x05\x12\x82\x04\n" +
 	"\x0fQuotes.Api | v3\x12\xe7\x03Quote catalog for the Aspire Quotes platform, served by stock gRPC-JSON transcoding: the google.api.http rules in this contract drive the routing.\n" +
 	"\n" +
 	"Every error response is the gRPC status envelope {code, message, details}; the machine-readable errorCode does not travel. Create answers 200 with the created quote and no Location header. Pagination is 1-based (page from 1, pageSize between 1 and 100, default 20). Send X-Correlation-Id to correlate calls; it is echoed on every response.2\x051.0.0Z\x9d\x01\n" +
@@ -421,7 +421,7 @@ const file_quotes_v3_proto_rawDesc = "" +
 	"\x06Bearer\x12\x8f\x01\b\x02\x12zBearer JWT from the Auth API (POST /api/v1/auth/login). Reads require the quotes:read scope; create requires quotes:write.\x1a\rAuthorization \x02b\f\n" +
 	"\n" +
 	"\n" +
-	"\x06Bearer\x12\x00ZYgithub.com/josnelihurt/code.examples.go.quotes/internal/quotes/api/v3/contract;contractv3b\x06proto3"
+	"\x06Bearer\x12\x00ZWgithub.com/josnelihurt/code.examples.go.quotes/internal/quotes/api/v3/contract;contractb\x06proto3"
 
 var (
 	file_quotes_v3_proto_rawDescOnce sync.Once

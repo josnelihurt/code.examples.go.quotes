@@ -32,6 +32,24 @@ it is why the versions are frozen rather than tracked to latest (exact versions 
 openapiv2 never copies that option into the Swagger document, so output parity is unaffected — the
 one deliberate descriptor-level difference, and a non-observable one.
 
+## Why a Go package lives under `docs/`
+
+`docs/openapi/embed.go` is a Go package (`package openapi`) inside a documentation directory,
+which Go's layout conventions would normally reject. It stays there deliberately, for two
+reasons that compound:
+
+- **`//go:embed` cannot reach across a parent directory.** The embed directive has to sit beside
+  the file it embeds, so the Go file cannot live under `internal/` while the document stays here.
+- **`docs/openapi/<name>.openapi.{json,yaml}` is a cross-repository convention.** All three
+  repositories in this family publish their frozen contract document at that path, and
+  `code.examples.frontend.quotes` hardcodes it — in its `contract-sync.yml` workflow and in its
+  `contract-syncer` agent — to track this document and the .NET one. Moving the JSON to satisfy
+  Go layout would break a convention two other repositories depend on.
+
+So the document stays, the embed file stays beside it, and only the package *name* was aligned
+with its directory (`openapiembed` → `openapi`). The single reader remains the `/openapi/v3.json`
+endpoint in [ADR 0002](0002-v3-transport-grpc-gateway.md), item g.
+
 ## Vendored proto dependencies
 
 Committed in-repo exactly as the .NET repo does under `V3/Contracts/`:
