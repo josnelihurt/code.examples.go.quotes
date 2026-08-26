@@ -41,18 +41,21 @@ func NewPostgresQuoteRepository(pool *pgxpool.Pool) *PostgresQuoteRepository {
 	return &PostgresQuoteRepository{queries: db.New(pool)}
 }
 
-// GetRandom returns a random quote, or nil when the catalog is empty.
+// GetRandom returns a random quote, or domain.NotFound() when the catalog is
+// empty.
 func (r *PostgresQuoteRepository) GetRandom(ctx context.Context) (*domain.Quote, error) {
 	row, err := r.queries.GetRandomQuote(ctx)
 	return findOne(row, err)
 }
 
-// GetByID returns the quote with the given id, or nil when it does not exist.
+// GetByID returns the quote with the given id, or domain.NotFound() when it
+// does not exist.
 func (r *PostgresQuoteRepository) GetByID(ctx context.Context, id string) (*domain.Quote, error) {
 	if strings.TrimSpace(id) == "" {
-		// A blank id is not one the catalog can hold; answering nil beats
-		// shipping a doomed round-trip (the .NET adapter rejects it outright).
-		return nil, nil
+		// A blank id is not one the catalog can hold; answering not-found
+		// beats shipping a doomed round-trip (the .NET adapter rejects it
+		// outright).
+		return nil, domain.NotFound()
 	}
 
 	row, err := r.queries.GetQuoteById(ctx, id)
@@ -94,7 +97,7 @@ func (r *PostgresQuoteRepository) List(ctx context.Context, skip, take int) (dom
 // the primary key) — both mean the quote already exists.
 func (r *PostgresQuoteRepository) Add(ctx context.Context, quote *domain.Quote) (domain.QuoteAddOutcome, error) {
 	if quote == nil {
-		return domain.QuoteAdded, errors.New("quote must not be nil")
+		return domain.QuoteAddUnknown, errors.New("quote must not be nil")
 	}
 
 	err := r.queries.InsertQuote(ctx, db.InsertQuoteParams(newQuoteRecord(quote, time.Now().UTC())))
@@ -107,9 +110,7 @@ func (r *PostgresQuoteRepository) Add(ctx context.Context, quote *domain.Quote) 
 		return domain.QuoteDuplicateFingerprint, nil
 	}
 
-	// Callers check the error before the outcome; the outcome carries no
-	// meaning on this path.
-	return domain.QuoteAdded, fmt.Errorf("inserting quote %q: %w", quote.ID, err)
+	return domain.QuoteAddUnknown, fmt.Errorf("inserting quote %q: %w", quote.ID, err)
 }
 
 // QuoteRecord is one row of the quotes table: the persistence shape of a
@@ -144,12 +145,14 @@ func (r QuoteRecord) toDomain() (*domain.Quote, error) {
 	return domain.ReconstituteQuote(r.ID, r.Text, r.Author, r.NormalizedFingerprint)
 }
 
-// findOne converts a single-row fetch into the port's nil-when-absent
-// contract: pgx.ErrNoRows means the catalog simply does not hold the quote.
+// findOne converts a single-row fetch into the port's not-found contract:
+// pgx.ErrNoRows means the catalog simply does not hold the quote, which is a
+// domain outcome rather than an infrastructure failure, so it crosses the port
+// as domain.NotFound() and every other error propagates as itself.
 func findOne(row db.Quote, err error) (*domain.Quote, error) {
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, nil
+			return nil, domain.NotFound()
 		}
 		return nil, err
 	}

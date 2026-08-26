@@ -26,6 +26,17 @@ func (e *Error) Error() string {
 	return fmt.Sprintf("%s: %s", e.Code, e.Description)
 }
 
+// Is compares by Code, so errors.Is works against the canonical constructors
+// even though each call returns a fresh pointer: errors.Is(err, NotFound())
+// asks "is this the not-found failure", not "is this that exact value". The
+// Code is the identity — it is the stable, wire-visible part — and the
+// Description is deliberately excluded so a reworded message never changes
+// which errors compare equal.
+func (e *Error) Is(target error) bool {
+	other, ok := target.(*Error)
+	return ok && other.Code == e.Code
+}
+
 // TextTooShort returns the canonical error for text below the minimum length.
 func TextTooShort() *Error {
 	return &Error{

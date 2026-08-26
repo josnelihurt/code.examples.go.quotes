@@ -28,13 +28,11 @@ func (uc *GetQuoteByIDUseCase) Execute(ctx context.Context, id string) (QuoteDto
 		return QuoteDto{}, domain.NotFound()
 	}
 
+	// The port answers a missing quote with domain.NotFound(), so the
+	// absence needs no separate branch here — it propagates as itself.
 	quote, err := uc.quotes.GetByID(ctx, id)
 	if err != nil {
 		return QuoteDto{}, err
-	}
-
-	if quote == nil {
-		return QuoteDto{}, domain.NotFound()
 	}
 
 	return toDto(quote), nil

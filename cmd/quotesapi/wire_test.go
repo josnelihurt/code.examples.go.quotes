@@ -82,7 +82,9 @@ func (s *stubRepository) GetByID(_ context.Context, id string) (*quotesdomain.Qu
 			return quote, nil
 		}
 	}
-	return nil, nil
+	// The port answers a missing quote with domain.NotFound(); the wire suite
+	// exercises the real composition, so the stub honours the real contract.
+	return nil, quotesdomain.NotFound()
 }
 
 func (s *stubRepository) List(_ context.Context, skip, take int) (quotesdomain.QuotePage, error) {
