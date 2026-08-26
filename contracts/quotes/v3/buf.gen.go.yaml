@@ -1,0 +1,28 @@
+# Go codegen for the v3 contract: the message/grpc/gateway stubs the transport
+# layer consumes, emitted into internal/quotes/api/v3/contract/ (the go_package
+# set in quotes_v3.proto, minus the module prefix via the module= option).
+# Kept in a second gen file rather than buf.gen.yaml so the hermetic contracts
+# stage (Dockerfile.build -> buf generate, openapiv2 only) stays simple and
+# unchanged in effect: the frozen OpenAPI document remains its single output.
+#
+# Regenerate with the pinned plugins (ADR 0002 / ADR 0003):
+#   go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.12
+#   go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.6.2
+#   go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway@v2.30.0
+#   go install github.com/bufbuild/buf/cmd/buf@v1.50.0
+#   make contracts-go   (buf generate --template buf.gen.go.yaml --path quotes_v3.proto)
+version: v2
+plugins:
+  - local: protoc-gen-go
+    out: ../../..
+    opt:
+      - module=github.com/josnelihurt/code.examples.go.quotes
+  - local: protoc-gen-go-grpc
+    out: ../../..
+    opt:
+      - module=github.com/josnelihurt/code.examples.go.quotes
+  - local: protoc-gen-grpc-gateway
+    out: ../../..
+    opt:
+      - module=github.com/josnelihurt/code.examples.go.quotes
+      - logtostderr=true

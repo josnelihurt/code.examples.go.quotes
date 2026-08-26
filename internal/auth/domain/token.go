@@ -23,6 +23,12 @@ type IssuedToken struct {
 type ValidateResult struct {
 	Valid    bool
 	Username string
+	// Scopes are the token's granted scope values. The scope claim travels
+	// either as one space-separated string (RFC 8693 — what CreateToken emits)
+	// or as repeated claims (a JSON array); the validator normalizes both into
+	// this slice so resource APIs can enforce scope policies without caring
+	// which form the issuer used. Empty when the token is invalid.
+	Scopes []string
 }
 
 // TokenIssuer is the port for minting and introspecting access tokens; the
