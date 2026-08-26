@@ -76,7 +76,7 @@ func TestValueObjectsHashEquallyAndWorkAsMapKeys(t *testing.T) {
 	}
 	texts[mustText(t, "Programs must be written for people to read.")]++
 
-	assert.Equal(t, 1, len(texts))
+	assert.Len(t, texts, 1)
 	assert.Equal(t, 2, texts[mustText(t, "Programs must be written for people to read.")])
 }
 

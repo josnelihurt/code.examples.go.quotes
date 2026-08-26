@@ -3,7 +3,6 @@ package problemjson_test
 import (
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -107,5 +106,5 @@ func TestTitlesComeFromTheReasonPhrases(t *testing.T) {
 		problemjson.Write(w, r, http.StatusInternalServerError, "error.unknown", "boom")
 	}, "")
 
-	assert.True(t, strings.Contains(recorder.Body.String(), `"title":"Internal Server Error"`))
+	assert.Contains(t, recorder.Body.String(), `"title":"Internal Server Error"`)
 }

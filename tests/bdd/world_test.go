@@ -195,7 +195,7 @@ func (w *world) bodyJSON() (map[string]any, error) {
 // infrastructure.NewJwtTokenService (rather than re-deriving the claim
 // shapes here) is the point: issuer and audience drift is impossible.
 func mintToken(username string, scopes []string) (string, error) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := slog.New(slog.DiscardHandler)
 	service, err := infrastructure.NewJwtTokenService(
 		&config.Jwt{SigningKey: signingKey()}, config.EnvironmentDevelopment, logger)
 	if err != nil {

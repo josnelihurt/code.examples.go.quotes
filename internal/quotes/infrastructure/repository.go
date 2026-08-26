@@ -71,9 +71,12 @@ func (r *PostgresQuoteRepository) List(ctx context.Context, skip, take int) (dom
 		return domain.QuotePage{}, fmt.Errorf("counting quotes: %w", err)
 	}
 
+	// G115: both are bounded before they reach the adapter —
+	// ListQuotesUseCase rejects a page size outside 1..domain.MaxPageSize and
+	// an offset above math.MaxInt32, so neither conversion can wrap.
 	rows, err := r.queries.ListQuotes(ctx, db.ListQuotesParams{
-		Limit:  int32(take),
-		Offset: int32(skip),
+		Limit:  int32(take), //nolint:gosec // bounded by domain.MaxPageSize
+		Offset: int32(skip), //nolint:gosec // bounded by math.MaxInt32 in the use case
 	})
 	if err != nil {
 		return domain.QuotePage{}, fmt.Errorf("listing quotes: %w", err)

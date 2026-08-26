@@ -10,6 +10,7 @@ package v3
 import (
 	"context"
 	"errors"
+	"math"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -164,13 +165,31 @@ func pageMessage(page application.QuotePageDto) *contract.ListQuotesResponse {
 	for _, quote := range page.Items {
 		items = append(items, quoteMessage(quote))
 	}
+	// G115: the paging scalars are bounded well inside int32 before they reach
+	// here — ListQuotesUseCase rejects anything outside 1..domain.MaxPage and
+	// 1..domain.MaxPageSize, and TotalPages is derived from those. TotalItems
+	// is the catalog row count, so it is checked rather than asserted.
 	return &contract.ListQuotesResponse{
 		Items:      items,
-		Page:       int32Ptr(int32(page.Page)),
-		PageSize:   int32Ptr(int32(page.PageSize)),
-		TotalItems: int32Ptr(int32(page.TotalItems)),
-		TotalPages: int32Ptr(int32(page.TotalPages)),
+		Page:       int32Ptr(int32(page.Page)),     //nolint:gosec // bounded by domain.MaxPage
+		PageSize:   int32Ptr(int32(page.PageSize)), //nolint:gosec // bounded by domain.MaxPageSize
+		TotalItems: int32Ptr(clampToInt32(page.TotalItems)),
+		TotalPages: int32Ptr(int32(page.TotalPages)), //nolint:gosec // derived from the two bounds above
 	}
 }
 
 func int32Ptr(v int32) *int32 { return &v }
+
+// clampToInt32 saturates rather than wrapping. TotalItems is the catalog's row
+// count, so unlike the paging scalars nothing upstream bounds it; a catalog
+// that somehow exceeded int32 should report the largest number the contract
+// can carry instead of a negative one.
+func clampToInt32(v int) int32 {
+	if v > math.MaxInt32 {
+		return math.MaxInt32
+	}
+	if v < 0 {
+		return 0
+	}
+	return int32(v)
+}

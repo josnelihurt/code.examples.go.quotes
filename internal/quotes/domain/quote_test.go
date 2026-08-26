@@ -1,7 +1,6 @@
 package domain_test
 
 import (
-	"regexp"
 	"testing"
 
 	"github.com/josnelihurt/code.examples.go.quotes/internal/quotes/domain"
@@ -22,7 +21,7 @@ func TestNewQuote(t *testing.T) {
 
 		// The id mirrors the .NET Guid "N" format: 32 lowercase hex digits,
 		// no dashes.
-		assert.Regexp(t, regexp.MustCompile(`^[0-9a-f]{32}$`), quote.ID)
+		assert.Regexp(t, `^[0-9a-f]{32}$`, quote.ID)
 	})
 
 	t.Run("mints distinct ids for identical input", func(t *testing.T) {

@@ -229,13 +229,24 @@ func readJSON(t *testing.T, response *http.Response) map[string]any {
 
 // assertErrorEnvelope pins the gRPC status envelope every service failure
 // answers with: {"code","message","details":[]} — deliberately different from
+// jsonInt reads a JSON number as an int. encoding/json decodes every number
+// into float64, and every number these assertions touch is a small exact
+// integer — a status, a page, a count — so comparing as int says what is meant
+// and avoids an epsilon comparison that would only obscure it.
+func jsonInt(t *testing.T, value any) int {
+	t.Helper()
+	number, ok := value.(float64)
+	require.True(t, ok, "expected a JSON number, got %T", value)
+	return int(number)
+}
+
 // the problem+json envelope the auth middleware owns.
 func assertErrorEnvelope(t *testing.T, response *http.Response, status, code int, message string) {
 	t.Helper()
 	assert.Equal(t, status, response.StatusCode)
 	assert.Equal(t, "application/json", response.Header.Get("Content-Type"))
 	body := readJSON(t, response)
-	assert.Equal(t, float64(code), body["code"])
+	assert.Equal(t, code, jsonInt(t, body["code"]))
 	assert.Equal(t, message, body["message"])
 	assert.Equal(t, []any{}, body["details"])
 }
@@ -283,16 +294,16 @@ func TestListAnswersTheSamePageShapeWithPagingScalarsOnPageOne(t *testing.T) {
 		assert.NotEmpty(t, entry["id"])
 	}
 
-	assert.Equal(t, float64(1), page["page"])
-	assert.Equal(t, float64(3), page["pageSize"])
-	assert.Equal(t, float64(8), page["totalItems"])
-	assert.Equal(t, float64(3), page["totalPages"], "totalPages = ceil(totalItems / pageSize) with the seed's 8 items over 3")
+	assert.Equal(t, 1, jsonInt(t, page["page"]))
+	assert.Equal(t, 3, jsonInt(t, page["pageSize"]))
+	assert.Equal(t, 8, jsonInt(t, page["totalItems"]))
+	assert.Equal(t, 3, jsonInt(t, page["totalPages"]), "totalPages = ceil(totalItems / pageSize) with the seed's 8 items over 3")
 
 	// The snake_case spellings bind too (ByTextName, then ByJSONName).
 	snake := h.get(t, h.client(t, authdomain.ScopeQuotesRead), "/api/v3/quotes?page=1&page_size=2")
 	require.Equal(t, http.StatusOK, snake.StatusCode)
 	snakePage := readJSON(t, snake)
-	assert.Equal(t, float64(2), snakePage["pageSize"])
+	assert.Equal(t, 2, jsonInt(t, snakePage["pageSize"]))
 }
 
 // The .NET suite's get-by-id hit: quote 7 is Harold Abelson's.
@@ -361,7 +372,7 @@ func TestEmptyFieldsFlowToDomainValidationInsteadOfAContractLayer(t *testing.T) 
 	require.Equal(t, http.StatusBadRequest, response.StatusCode)
 	assert.Equal(t, "application/json", response.Header.Get("Content-Type"))
 	body := readJSON(t, response)
-	assert.Equal(t, float64(3), body["code"])
+	assert.Equal(t, 3, jsonInt(t, body["code"]))
 	assert.Contains(t, body["message"], "at least")
 	assert.Equal(t, []any{}, body["details"])
 }
@@ -408,7 +419,7 @@ func TestAnUnauthenticatedRequestAnswersTheShared401Problem(t *testing.T) {
 	assert.Equal(t, "A valid bearer token is required.", body["detail"])
 	assert.Equal(t, "Unauthorized", body["title"])
 	assert.Equal(t, "https://tools.ietf.org/html/rfc9110#section-15.5.2", body["type"])
-	assert.Equal(t, float64(http.StatusUnauthorized), body["status"])
+	assert.Equal(t, http.StatusUnauthorized, jsonInt(t, body["status"]))
 	assert.NotEmpty(t, body["correlationId"])
 }
 
