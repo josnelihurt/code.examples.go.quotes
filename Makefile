@@ -1,7 +1,7 @@
 # Developer entry points. CI runs the same commands (build/test/lint), so a
 # green laptop means a green build.
 
-.PHONY: help build test test-db lint tidy
+.PHONY: help build test test-db lint tidy contracts-go
 
 # The podman machine's API socket, when one is running — the database
 # integration tests need a container runtime and otherwise skip themselves.
@@ -27,3 +27,6 @@ lint: ## Run the committed golangci-lint configuration
 
 tidy: ## Sync go.mod and go.sum with the current imports
 	go mod tidy
+
+contracts-go: ## Regenerate the v3 Go contract code (pinned plugins; see contracts/quotes/v3/buf.gen.go.yaml)
+	cd contracts/quotes/v3 && buf generate --template buf.gen.go.yaml --path quotes_v3.proto

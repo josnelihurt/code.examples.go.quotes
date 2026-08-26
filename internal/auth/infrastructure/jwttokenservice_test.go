@@ -243,3 +243,64 @@ func TestValidateRequiresAnExpiration(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, result.Valid)
 }
+
+// TestValidationNormalizesBothScopeClaimForms pins the resource-API contract
+// of ValidateResult.Scopes: the claim travels either as one space-separated
+// string (RFC 8693 — the form CreateToken mints) or as repeated claims (a
+// JSON array), and validation normalizes both into the same slice.
+func TestValidationNormalizesBothScopeClaimForms(t *testing.T) {
+	sut := newService(t, defaultCfg(), config.EnvironmentDevelopment)
+	key := []byte(testSigningKey)
+	now := time.Now()
+
+	issued, err := sut.CreateToken(context.Background(), "jrb",
+		[]string{domain.ScopeQuotesWrite, domain.ScopeQuotesRead})
+	require.NoError(t, err)
+	result, err := sut.ValidateToken(context.Background(), issued.AccessToken)
+	require.NoError(t, err)
+	require.True(t, result.Valid)
+	assert.Equal(t, []string{domain.ScopeQuotesRead, domain.ScopeQuotesWrite}, result.Scopes,
+		"the space-separated claim splits into granted scopes")
+
+	repeated, err := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"iss":   infrastructure.DefaultIssuer,
+		"aud":   []string{infrastructure.DefaultAudience},
+		"sub":   "jrb",
+		"name":  "jrb",
+		"exp":   now.Add(time.Hour).Unix(),
+		"scope": []any{domain.ScopeQuotesRead, domain.ScopeQuotesWrite},
+	}).SignedString(key)
+	require.NoError(t, err)
+	result, err = sut.ValidateToken(context.Background(), repeated)
+	require.NoError(t, err)
+	require.True(t, result.Valid, "the repeated-claims form validates like the string form")
+	assert.Equal(t, []string{domain.ScopeQuotesRead, domain.ScopeQuotesWrite}, result.Scopes)
+
+	mixed, err := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"iss":   infrastructure.DefaultIssuer,
+		"aud":   []string{infrastructure.DefaultAudience},
+		"sub":   "jrb",
+		"name":  "jrb",
+		"exp":   now.Add(time.Hour).Unix(),
+		"scope": []any{domain.ScopeQuotesRead + " " + domain.ScopeQuotesWrite},
+	}).SignedString(key)
+	require.NoError(t, err)
+	result, err = sut.ValidateToken(context.Background(), mixed)
+	require.NoError(t, err)
+	require.True(t, result.Valid)
+	assert.Equal(t, []string{domain.ScopeQuotesRead, domain.ScopeQuotesWrite}, result.Scopes,
+		"an array carrying one space-separated string splits too")
+
+	objectScope, err := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"iss":   infrastructure.DefaultIssuer,
+		"aud":   []string{infrastructure.DefaultAudience},
+		"sub":   "jrb",
+		"name":  "jrb",
+		"exp":   now.Add(time.Hour).Unix(),
+		"scope": map[string]any{"read": true},
+	}).SignedString(key)
+	require.NoError(t, err)
+	result, err = sut.ValidateToken(context.Background(), objectScope)
+	require.NoError(t, err)
+	assert.False(t, result.Valid, "a malformed scope claim fails the whole validation")
+}

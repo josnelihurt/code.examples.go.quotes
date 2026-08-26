@@ -30,6 +30,14 @@ record, no hand-written adapter. The module versions are verified and listed und
 - **(d) Query binding** — `normalizeFieldPath` resolves keys by `ByTextName` then `ByJSONName`, so
   `?page=1&page_size=20` and `?pageSize=3` both bind; populating an optional marks presence, so
   `req.HasPage()` tells absent from sent (defaults 1/20 stay in the use case).
+- **(d2) Route priority** — `ServeMux.Handle` *prepends* each handler, so on pattern ties the
+  **last-declared rpc wins**: with `GetRandomQuote` declared before `GetQuoteById`, the wildcard
+  `GET /api/v3/quotes/{id}` swallows `/quotes/random` as `id:"random"` (found empirically — the
+  wire test pins it). The proto therefore declares `GetQuoteById` **before** `GetRandomQuote`.
+  ASP.NET Core's transcoding router picks literals over parameters by specificity, so the order
+  is cosmetic for the .NET host and invisible in the frozen OpenAPI document (paths key-sorted,
+  verified byte-identical). Service-level proto comments do leak into that document as the tag
+  description, which is why this note lives here and not in the contract.
 - **(e) X-Correlation-Id** — `DefaultHeaderMatcher` *drops* X- headers (not IANA permanent) and the
   default outgoing matcher prefixes everything `Grpc-Metadata-`; override both (snippet below), echo
   the id via `grpc.SendHeader`.

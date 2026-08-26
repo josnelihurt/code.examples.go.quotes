@@ -99,11 +99,6 @@ message ListQuotesResponse {
 }
 
 service QuoteService {
-  // Returns a random quote from the catalog.
-  rpc GetRandomQuote(GetRandomQuoteRequest) returns (Quote) {
-    option (google.api.http) = { get: "/api/v3/quotes/random" };
-  }
-
   // Lists one page of the quote catalog in stable order. Fields not bound by the path
   // (page, pageSize) travel as query parameters.
   rpc ListQuotes(ListQuotesRequest) returns (ListQuotesResponse) {
@@ -113,6 +108,11 @@ service QuoteService {
   // Returns one quote by id.
   rpc GetQuoteById(GetQuoteByIdRequest) returns (Quote) {
     option (google.api.http) = { get: "/api/v3/quotes/{id}" };
+  }
+
+  // Returns a random quote from the catalog.
+  rpc GetRandomQuote(GetRandomQuoteRequest) returns (Quote) {
+    option (google.api.http) = { get: "/api/v3/quotes/random" };
   }
 
   // Adds a quote to the catalog; the request body maps onto the whole message. Answers

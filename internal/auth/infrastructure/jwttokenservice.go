@@ -5,6 +5,7 @@ package infrastructure
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -32,11 +33,49 @@ const tokenLeeway = time.Minute
 
 // claims is the issued token payload: registered claims (iss/aud/sub/iat/exp)
 // plus the name and scope members. The scope claim is space-separated per
-// RFC 8693 (one claim carrying every granted value).
+// RFC 8693 (one claim carrying every granted value) on the wire we mint, but
+// scopeClaims also parses the repeated-claims form (a JSON array) some
+// issuers emit — .NET's claim mapping accepts both, so validation does too.
 type claims struct {
 	jwt.RegisteredClaims
-	Name  string `json:"name"`
-	Scope string `json:"scope"`
+	Name  string      `json:"name"`
+	Scope scopeClaims `json:"scope"`
+}
+
+// scopeClaims is the scope claim in both forms it legally travels: one
+// space-separated string, or repeated claims (a JSON array). Unmarshaling
+// splits either into values; marshaling writes the single-string form so
+// tokens minted here keep their exact historical shape.
+type scopeClaims []string
+
+// UnmarshalJSON accepts the string form and the repeated-claims form (a JSON
+// array), splitting on whitespace inside either and merging everything into
+// plain values. Anything else is a malformed scope claim — an error that
+// fails the whole validation.
+func (s *scopeClaims) UnmarshalJSON(data []byte) error {
+	var single string
+	if err := json.Unmarshal(data, &single); err == nil {
+		*s = strings.Fields(single)
+		return nil
+	}
+
+	var repeated []string
+	if err := json.Unmarshal(data, &repeated); err == nil {
+		values := make([]string, 0, len(repeated))
+		for _, entry := range repeated {
+			values = append(values, strings.Fields(entry)...)
+		}
+		*s = values
+		return nil
+	}
+
+	return errors.New("the scope claim must be a string or an array of strings")
+}
+
+// MarshalJSON writes the single space-separated claim (RFC 8693) — the exact
+// bytes CreateToken has always minted.
+func (s scopeClaims) MarshalJSON() ([]byte, error) {
+	return json.Marshal(strings.Join(s, " "))
 }
 
 // JwtTokenService issues and introspects HS256 access tokens — the .NET
@@ -105,7 +144,6 @@ func (s *JwtTokenService) CreateToken(_ context.Context, username string, scopes
 		Name:  username,
 		Scope: normalizeScopes(scopes),
 	}
-
 	token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, payload).SignedString(s.signingKey)
 	if err != nil {
 		return domain.IssuedToken{}, fmt.Errorf("signing the access token: %w", err)
@@ -114,7 +152,7 @@ func (s *JwtTokenService) CreateToken(_ context.Context, username string, scopes
 	return domain.IssuedToken{AccessToken: token, ExpiresInSeconds: s.expiresInSeconds}, nil
 }
 
-func normalizeScopes(scopes []string) string {
+func normalizeScopes(scopes []string) scopeClaims {
 	seen := make(map[string]struct{}, len(scopes))
 	unique := make([]string, 0, len(scopes))
 	for _, scope := range scopes {
@@ -125,7 +163,7 @@ func normalizeScopes(scopes []string) string {
 		unique = append(unique, scope)
 	}
 	sort.Strings(unique)
-	return strings.Join(unique, " ")
+	return scopeClaims(unique)
 }
 
 // ValidateToken introspects an access token. An invalid token is data, not an
@@ -164,5 +202,9 @@ func (s *JwtTokenService) ValidateToken(_ context.Context, accessToken string) (
 		return domain.ValidateResult{}, nil
 	}
 
-	return domain.ValidateResult{Valid: true, Username: username}, nil
+	return domain.ValidateResult{
+		Valid:    true,
+		Username: username,
+		Scopes:   payload.Scope,
+	}, nil
 }
