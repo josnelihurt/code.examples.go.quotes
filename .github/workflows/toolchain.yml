@@ -1,0 +1,130 @@
+name: toolchain
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Superseded PR runs only re-validate the image; cancel them while keeping every
+# publish run (push to main, dispatch) — a half-finished publish helps nobody.
+concurrency:
+  group: toolchain-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+  # The publish path pushes the toolchain image to this repository's GHCR namespace.
+  packages: write
+
+# Actions are pinned to commit SHAs (tag in the trailing comment) so a mutable-tag
+# takeover cannot run third-party code against the repository.
+jobs:
+  # Job-level path gating, same posture as the ci workflow: PR runs validate the image
+  # only when its inputs (contracts/docker-build-base/**) changed, while pushes to main
+  # and dispatches always build + publish. The skip happens at the job level on purpose
+  # (skipped check runs still satisfy branch protection), and there is no workflow-level
+  # paths filter for the same reason ci.yml has none.
+  changes:
+    name: detect changed paths
+    runs-on: ubuntu-latest
+    permissions:
+      # paths-filter lists the PR's changed files via the API; the workflow-level
+      # contents-only grant would 403 that call and fail every PR run.
+      contents: read
+      pull-requests: read
+    outputs:
+      run_publish: ${{ steps.decide.outputs.run_publish }}
+      push: ${{ steps.decide.outputs.push }}
+    steps:
+      # Only pull_request diffs are filtered; on every other trigger (push to main,
+      # dispatch) the step is skipped and the decide step forces build + push.
+      - name: Filter paths
+        id: filter
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: |
+            toolchain:
+              - 'contracts/docker-build-base/**'
+
+      # PRs validate (build, no push); main and dispatch publish.
+      - name: Decide whether to build or publish
+        id: decide
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          FILTER_TOOLCHAIN: ${{ steps.filter.outputs.toolchain }}
+        run: |
+          set -euo pipefail
+          if [ "${EVENT_NAME:-}" != "pull_request" ]; then
+            echo "run_publish=true" >> "$GITHUB_OUTPUT"
+            echo "push=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "run_publish=${FILTER_TOOLCHAIN:-false}" >> "$GITHUB_OUTPUT"
+          echo "push=false" >> "$GITHUB_OUTPUT"
+
+  publish:
+    name: contracts toolchain image (validate on PRs, publish on main)
+    needs: changes
+    if: needs.changes.outputs.run_publish == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The immutable tag is the VERSION file's single line; it feeds both the pushed
+      # tag and the image's org.opencontainers.image.version label, so the two cannot
+      # drift apart.
+      - name: Read the pinned toolchain version
+        id: version
+        run: |
+          set -euo pipefail
+          tag="$(tr -d '[:space:]' < contracts/docker-build-base/VERSION)"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+
+      # Multi-arch on the amd64 runner: the arm64 leg (local podman machines on macOS
+      # pull it for Dockerfile.build) runs under emulation — fine for the pinned
+      # binaries this image installs, nothing compiles on the runner.
+      - uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+
+      - name: Log in to GHCR
+        if: needs.changes.outputs.push == 'true'
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # PR runs compile-validate both arches and push nothing (push=false, load=false);
+      # main and dispatch push the multi-arch manifest. The gha cache carries the
+      # apt + download + verify layers across runs so re-validations skip the network.
+      - name: Build the toolchain image
+        id: build
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: contracts/docker-build-base
+          platforms: linux/amd64,linux/arm64
+          push: ${{ needs.changes.outputs.push == 'true' }}
+          load: false
+          tags: ghcr.io/${{ github.repository }}/toolchain/contracts:${{ steps.version.outputs.tag }}
+          build-args: |
+            TOOLCHAIN_VERSION=${{ steps.version.outputs.tag }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # The digest is the artifact that matters: Dockerfile.build pins it, and it is
+      # what the orchestrator (or a contributor bumping the pins) copies from here.
+      - name: Record the published digest
+        if: needs.changes.outputs.push == 'true'
+        run: |
+          {
+            echo "### Contracts toolchain image published"
+            echo ""
+            echo '```'
+            echo "ghcr.io/${{ github.repository }}/toolchain/contracts:${{ steps.version.outputs.tag }}@${{ steps.build.outputs.digest }}"
+            echo '```'
+            echo ""
+            echo "Pin this digest in Dockerfile.build: append \`@${{ steps.build.outputs.digest }}\` to the generate stage's FROM line."
+          } >> "$GITHUB_STEP_SUMMARY"
