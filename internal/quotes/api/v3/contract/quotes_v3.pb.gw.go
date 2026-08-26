@@ -2,11 +2,11 @@
 // source: quotes_v3.proto
 
 /*
-Package contractv3 is a reverse proxy.
+Package contract is a reverse proxy.
 
 It translates gRPC into RESTful JSON APIs.
 */
-package contractv3
+package contract
 
 import (
 	"context"

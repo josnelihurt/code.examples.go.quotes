@@ -29,7 +29,7 @@ import (
 	"github.com/josnelihurt/code.examples.go.quotes/internal/platform/httpserver"
 	"github.com/josnelihurt/code.examples.go.quotes/internal/platform/telemetry"
 	"github.com/josnelihurt/code.examples.go.quotes/internal/quotes/api/v3"
-	contractv3 "github.com/josnelihurt/code.examples.go.quotes/internal/quotes/api/v3/contract"
+	"github.com/josnelihurt/code.examples.go.quotes/internal/quotes/api/v3/contract"
 	"github.com/josnelihurt/code.examples.go.quotes/internal/quotes/application"
 	"github.com/josnelihurt/code.examples.go.quotes/internal/quotes/infrastructure"
 )
@@ -205,7 +205,7 @@ func openCatalog(ctx context.Context, logger *slog.Logger, databaseURL string) (
 // after the HTTP server has drained.
 func newHandler(ctx context.Context, logger *slog.Logger, deps transportDeps) (http.Handler, func(), error) {
 	grpcServer := grpc.NewServer(grpc.ChainUnaryInterceptor(v3.ScopeUnaryInterceptor(deps.auth)))
-	contractv3.RegisterQuoteServiceServer(grpcServer, v3.NewService(
+	contract.RegisterQuoteServiceServer(grpcServer, v3.NewService(
 		deps.random, deps.byID, deps.list, deps.create, deps.metrics))
 
 	// Loopback listener: the grpc server is an implementation detail of the
@@ -223,7 +223,7 @@ func newHandler(ctx context.Context, logger *slog.Logger, deps transportDeps) (h
 	// the loopback listener this process owns is the only peer, and the wire
 	// surface — where TLS belongs — is the HTTP side.
 	dialOptions := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
-	if err := contractv3.RegisterQuoteServiceHandlerFromEndpoint(ctx, gateway, listener.Addr().String(), dialOptions); err != nil {
+	if err := contract.RegisterQuoteServiceHandlerFromEndpoint(ctx, gateway, listener.Addr().String(), dialOptions); err != nil {
 		grpcServer.Stop()
 		return nil, nil, fmt.Errorf("registering the gateway handlers: %w", err)
 	}

@@ -19,7 +19,7 @@
 // - protoc             (unknown)
 // source: quotes_v3.proto
 
-package contractv3
+package contract
 
 import (
 	context "context"
