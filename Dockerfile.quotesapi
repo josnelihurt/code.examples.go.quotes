@@ -1,6 +1,8 @@
 # The quotes API image (ADR 0001). Build from the repository root — the Go
-# build additionally embeds the migrations (migrations/) and the frozen v3
-# OpenAPI document (docs/openapi/) that the v3 transport serves:
+# build additionally embeds the migrations
+# (internal/quotes/infrastructure/migrations/, carried by the internal/ copy
+# below) and the frozen v3 OpenAPI document (docs/openapi/) that the v3
+# transport serves:
 #
 #   podman build -f Dockerfile.quotesapi -t quotes-quotesapi .
 #
@@ -13,7 +15,6 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY cmd/quotesapi ./cmd/quotesapi
 COPY internal ./internal
-COPY migrations ./migrations
 COPY docs/openapi ./docs/openapi
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/quotesapi ./cmd/quotesapi
 

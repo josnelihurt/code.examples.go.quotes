@@ -28,7 +28,8 @@ property the BDD and e2e suites assert on. The throwaway e2e catalog
 
 ## The pipeline: sqlc + pgx + golang-migrate
 
-- **Schema**: `migrations/0001_initial.up.sql` — hand-written SQL, the .NET repo's
+- **Schema**: `internal/quotes/infrastructure/migrations/0001_initial.up.sql` — hand-written
+  SQL, the .NET repo's
   initial migration mirrored column-for-column (snake_case), with the eight seed rows
   verbatim (ids `"1"`–`"8"`, fixed `2024-01-01T00:00:00Z` timestamps so they sort first).
 - **Queries**: `internal/quotes/infrastructure/queries.sql` — the repository's

@@ -10,7 +10,7 @@ import (
 	_ "github.com/golang-migrate/migrate/v4/database/pgx/v5" // registers the pgx5:// scheme
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 
-	"github.com/josnelihurt/code.examples.go.quotes/migrations"
+	"github.com/josnelihurt/code.examples.go.quotes/internal/quotes/infrastructure/migrations"
 )
 
 // Migrate applies every embedded migration up to the latest version — the Go

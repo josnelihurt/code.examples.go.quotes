@@ -30,7 +30,8 @@ only code that knows pgx exists — implements it over the generated `*Queries` 
 - `Add`: plain `INSERT`; `var pgErr *pgconn.PgError; errors.As(err, &pgErr) &&
   pgErr.Code == "23505"` returns `DuplicateFingerprint`; every other error propagates.
 
-**golang-migrate v4.19.1**, migrations embedded (`//go:embed migrations/*.sql` +
+**golang-migrate v4.19.1**, migrations embedded (`//go:embed *.sql` from
+`internal/quotes/infrastructure/migrations` +
 `source/iofs`, `database/pgx` driver), applied by the API host before serving — boot
 parity with `MigrateAsync`, advisory lock serializing replicas; no migrate CLI in the image.
 

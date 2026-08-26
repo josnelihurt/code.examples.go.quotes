@@ -1,8 +1,8 @@
 // Package migrations exposes the SQL migration files as an embed.FS so the
 // infrastructure layer can run them from source (iofs) without shipping a
 // migrate CLI. The embed directive must live beside the files it embeds — Go
-// cannot embed across parent directories — which is why this file lives in
-// migrations/ rather than next to the Migrate helper.
+// cannot embed across parent directories — so this file sits with the .sql
+// files, one directory below the Migrate helper that reads it.
 package migrations
 
 import "embed"

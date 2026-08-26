@@ -48,7 +48,7 @@ Every gate runs the same entry point a developer runs:
 
 | CI job | Tier | Path filter that triggers it |
 |--------|------|------------------------------|
-| `build & test (race + coverage)` | units + wire + database integration | `**/*.go`, `go.mod`/`go.sum`, `sqlc.yaml`, `migrations/**`, `.golangci.yml`, `Makefile`, image pins |
+| `build & test (race + coverage)` | units + wire + database integration | `**/*.go`, `go.mod`/`go.sum`, `sqlc.yaml`, `internal/quotes/infrastructure/migrations/**`, `.golangci.yml`, `Makefile`, image pins |
 | `specs (BDD against the compose stack)` | specs | backend changes + image pins |
 | `e2e (full-stack Playwright against the Go APIs)` | e2e | backend changes + the `frontend` submodule pointer + image pins |
 
