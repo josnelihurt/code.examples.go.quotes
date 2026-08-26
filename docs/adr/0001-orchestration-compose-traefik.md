@@ -59,7 +59,7 @@ orchestrates via Aspire: postgres (+pgweb), auth-api, quotes-api, Vite/pnpm fron
 
 Verified 2026-08-25 via Docker Hub + GitHub releases; no `latest`-style tags:
 
-- `docker.io/traefik/traefik:v3.7.11` — v3.7 only actively supported v3 line (3.6 security ends 2026-08-16)
+- `docker.io/library/traefik:v3.7.11` — official image; v3.7 only actively supported v3 line (3.6 security ends 2026-08-16). The vendor's `traefik/traefik` repository hosts experimental builds only — stable tags live under `library/`
 - `docker.io/library/postgres:18.6-alpine3.23` — current 18.x (.NET pins 18.3; same PG 18 line)
 - `docker.io/sosedoff/pgweb:0.17.0` — exact parity with .NET pin; current upstream release
 - `docker.io/library/nginx:1.31.4-alpine3.24` — docs static server
@@ -71,7 +71,7 @@ Verified 2026-08-25 via Docker Hub + GitHub releases; no `latest`-style tags:
 x-api-env: &api-env { JWT_SIGNING_KEY: "${JWT_SIGNING_KEY:?set in .env}" }
 services:
   edge:
-    image: docker.io/traefik/traefik:v3.7.11
+    image: docker.io/library/traefik:v3.7.11
     command: >-
       --entryPoints.web.address=:80 --providers.docker.enabled=false --providers.file.directory=/etc/traefik --providers.file.watch=true
     ports: ["8080:80"] # gateway parity: http://localhost:8080

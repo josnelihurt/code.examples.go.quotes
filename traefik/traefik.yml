@@ -1,0 +1,26 @@
+# Traefik static configuration (ADR 0001). Mounted at /etc/traefik/traefik.yml
+# where Traefik's default static-config lookup finds it. The route table lives
+# next to this file in dynamic.yml — the file provider watches it live, the
+# docker provider stays off (no engine socket, identical on docker and podman),
+# and the API dashboard stays disabled: local observability is the container
+# log stream, not a dashboard port.
+entryPoints:
+  web:
+    address: ":80"
+
+providers:
+  file:
+    directory: /etc/traefik/dynamic
+    watch: true
+
+# `traefik healthcheck` (the container healthcheck's probe) needs the ping
+# endpoint enabled; it listens on the auto-created internal "traefik"
+# entrypoint (:8082, container-local, never published).
+ping: {}
+
+api:
+  dashboard: false
+  insecure: false
+
+log:
+  level: INFO

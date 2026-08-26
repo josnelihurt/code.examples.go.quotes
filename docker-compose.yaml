@@ -1,0 +1,151 @@
+# The whole local topology (ADR 0001): the compose file is both the dev stack
+# and the publish artifact — the .NET original's AppHost, expressed in the
+# engine-neutral compose spec so the same file runs under docker compose (CI)
+# and podman compose (macOS laptops).
+#
+# Profiles: unprofiled = core (postgres + both APIs + edge); `dev` adds the
+# docs server (:3001) and pgweb (:8081); `fullstack` adds the Vite frontend
+# (:5173). scripts/start.sh drives the selection. Image tags are pinned
+# literally and cross-checked against scripts/images.env by CI (the image-pins
+# job); the Go images build from Dockerfile.authapi/Dockerfile.quotesapi at
+# the repository root (their build context needs go.mod, internal/, and for
+# quotesapi the embedded migrations + frozen OpenAPI document).
+
+name: quotes
+
+x-api-env: &api-env
+  # One shared HS256 key across both APIs (the .NET stack's jwt-signing-key
+  # parameter): tokens minted by authapi must validate in quotesapi. The
+  # default is a deliberately public local-development value (see
+  # docs/dev-credentials.md); override AUTH_SIGNING_KEY to sign with anything
+  # else. Viper's `__` separator maps it onto jwt.signingkey (ADR 0004).
+  JWT__SIGNINGKEY: ${AUTH_SIGNING_KEY:-public-local-compose-signing-key-0000000000000000}
+  # Bind the listeners container-wide — the default localhost:8090 would only
+  # accept connections from inside the container itself.
+  SERVER__ADDRESS: :8080
+
+services:
+  # The quotes catalog. Volume-less on purpose (ADR 0001): quotesapi migrates
+  # and seeds at boot, so every `start.sh` is a deterministic from-scratch
+  # catalog — the property the e2e suite depends on.
+  postgres:
+    image: docker.io/library/postgres:18.6-alpine3.23
+    environment:
+      POSTGRES_DB: quotesdb
+      POSTGRES_USER: quotes
+      POSTGRES_PASSWORD: quotes
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U quotes -d quotesdb"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+
+  # Credential login + token introspection. Owns no database, so it depends on
+  # nothing — the .NET host's auth-api placement, kept.
+  authapi:
+    build:
+      context: .
+      dockerfile: Dockerfile.authapi
+    environment: *api-env
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/alive"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+
+  # The v3 quotes transport behind the edge. The connection string must agree
+  # with the postgres service env above (user/password/database); the boot
+  # retries database connects itself (ADR 0001's podman caveat:
+  # depends_on:condition there has bug history), so ordering is a convenience,
+  # not a correctness requirement.
+  quotesapi:
+    build:
+      context: .
+      dockerfile: Dockerfile.quotesapi
+    environment:
+      <<: *api-env
+      CONNECTIONSTRINGS__QUOTESDB: postgres://quotes:quotes@postgres:5432/quotesdb?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
+  # The edge: Traefik v3 with the file provider (no docker labels, no engine
+  # socket — identical on docker and podman). Static config + route table are
+  # mounted read-only from ./traefik; the route table (dynamic.yml) is watched,
+  # so route edits apply without a restart. Host port 8080 preserves the .NET
+  # gateway parity URL http://localhost:8080.
+  edge:
+    image: docker.io/library/traefik:v3.7.11
+    volumes:
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/dynamic.yml:/etc/traefik/dynamic/dynamic.yml:ro
+    ports:
+      - "8080:80"
+    depends_on:
+      - authapi
+      - quotesapi
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  # Docsify docs + the Scalar v3 reference page on :3001 (dev profile) — the
+  # .NET stack's docsify-cli serve, as a static server instead.
+  docs:
+    image: docker.io/library/nginx:1.31.4-alpine3.24
+    volumes:
+      - ./docs:/usr/share/nginx/html:ro
+      - ./docs/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "3001:80"
+    profiles: [dev]
+
+  # pgweb on its own host port (dev profile) — the .NET stack's WithPgWeb().
+  pgweb:
+    image: docker.io/sosedoff/pgweb:0.17.0
+    command: --url=postgres://quotes:quotes@postgres:5432/quotesdb?sslmode=disable
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles: [dev]
+
+  # The Vite dev server (fullstack profile) — the .NET stack's AddViteApp with
+  # pnpm. The SPA's proxy targets (frontend/vite.config.ts reads
+  # AUTH_API_HTTP/QUOTES_API_HTTP) point at the edge so the browser origin
+  # story matches production: one origin, /api/* behind the edge. The
+  # transport version the SPA exercises is chosen in its UI switcher
+  # (sessionStorage; default v1) — pick v3 there to drive this backend's v3
+  # routes.
+  frontend:
+    image: docker.io/library/node:24.19.0-alpine3.23
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+    command: sh -c "corepack enable && pnpm install --frozen-lockfile && pnpm dev --host 0.0.0.0"
+    environment:
+      COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+      AUTH_API_HTTP: http://edge:80
+      QUOTES_API_HTTP: http://edge:80
+    ports:
+      - "5173:5173"
+    depends_on:
+      - edge
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:5173/"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 180s
+    profiles: [fullstack]

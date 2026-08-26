@@ -18,6 +18,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
@@ -115,12 +116,11 @@ func run() error {
 
 	// The catalog is migrated before serving — idempotent, and serialized
 	// across replicas by the migrator's advisory lock (the .NET host's
-	// Database.MigrateAsync stance).
-	if err := infrastructure.Migrate(ctx, databaseURL); err != nil {
-		return fmt.Errorf("migrating the catalog database: %w", err)
-	}
-
-	pool, err := infrastructure.NewPool(ctx, databaseURL)
+	// Database.MigrateAsync stance). openCatalog retries connection failures
+	// for a bounded budget: compose's depends_on:condition ordering is
+	// unreliable on podman-compose (ADR 0001), so the boot itself tolerates a
+	// database that is still becoming healthy.
+	pool, err := openCatalog(ctx, logger, databaseURL)
 	if err != nil {
 		return fmt.Errorf("opening the catalog database: %w", err)
 	}
@@ -150,6 +150,44 @@ func run() error {
 
 	logger.Info("starting the quotes api", "addr", cfg.Server.Address)
 	return httpserver.Serve(ctx, logger, cfg.Server.Address, handler)
+}
+
+// openCatalog migrates the catalog and opens its pool, retrying with capped
+// exponential backoff while the database is unreachable — the in-process
+// expression of the .NET host's WaitFor(db) stance. The bound is deliberate:
+// a database that never appears fails the boot loudly (after the retry
+// budget) instead of hanging forever, and a genuinely broken connection
+// string fails the same way, just later. A shutdown signal cancels the wait
+// immediately.
+func openCatalog(ctx context.Context, logger *slog.Logger, databaseURL string) (*pgxpool.Pool, error) {
+	const (
+		attempts   = 20
+		minBackoff = 500 * time.Millisecond
+		maxBackoff = 3 * time.Second
+	)
+
+	for attempt := 1; ; attempt++ {
+		err := infrastructure.Migrate(ctx, databaseURL)
+		if err == nil {
+			var pool *pgxpool.Pool
+			if pool, err = infrastructure.NewPool(ctx, databaseURL); err == nil {
+				return pool, nil
+			}
+		}
+		if attempt == attempts {
+			return nil, err
+		}
+
+		backoff := min(minBackoff<<(attempt-1), maxBackoff)
+		logger.Warn("the catalog database is not ready yet; retrying",
+			"attempt", attempt, "of", attempts, "backoff", backoff, "error", err)
+
+		select {
+		case <-ctx.Done():
+			return nil, err
+		case <-time.After(backoff):
+		}
+	}
 }
 
 // newHandler composes the full HTTP surface — the same composition run()
