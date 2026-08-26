@@ -41,7 +41,7 @@ func newStack(t *testing.T, permitLimit int) http.Handler {
 func newStackWithKey(t *testing.T, permitLimit int, signingKey string) http.Handler {
 	t.Helper()
 
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := slog.New(slog.DiscardHandler)
 
 	credentials, err := infrastructure.NewHardcodedCredentialStore(config.EnvironmentDevelopment)
 	require.NoError(t, err)
@@ -78,12 +78,24 @@ func post(t *testing.T, stack http.Handler, path, body string, headers map[strin
 
 	raw, err := io.ReadAll(response.Body)
 	require.NoError(t, err)
+	require.NoError(t, response.Body.Close())
 
 	var decoded map[string]any
 	if len(bytes.TrimSpace(raw)) > 0 {
 		require.NoError(t, json.Unmarshal(raw, &decoded), "body: %s", raw)
 	}
 	return response, decoded
+}
+
+// jsonInt reads a JSON number as an int. encoding/json decodes every number
+// into float64, and every number these assertions touch is a small exact
+// integer — a status, a lifetime in seconds — so comparing as int says what is
+// meant and avoids an epsilon comparison that would only obscure it.
+func jsonInt(t *testing.T, value any) int {
+	t.Helper()
+	number, ok := value.(float64)
+	require.True(t, ok, "expected a JSON number, got %T", value)
+	return int(number)
 }
 
 func login(t *testing.T, stack http.Handler, username, password string, headers map[string]string) (*http.Response, map[string]any) {
@@ -122,7 +134,7 @@ func TestLoginReturnsTheTokenAndEchoesTheCorrelationId(t *testing.T) {
 	require.True(t, isString, "accessToken is a string")
 	assert.NotEmpty(t, accessToken)
 	assert.Equal(t, "corr-full-1", body["correlationId"])
-	assert.Equal(t, float64(3600), body["expiresIn"])
+	assert.Equal(t, 3600, jsonInt(t, body["expiresIn"]))
 	assert.Equal(t, "jrb", body["username"])
 }
 
@@ -160,7 +172,7 @@ func TestLoginWithAWrongPasswordReturnsThe401Problem(t *testing.T) {
 	assert.Equal(t, "application/problem+json", response.Header.Get("Content-Type"))
 	assert.Equal(t, "https://tools.ietf.org/html/rfc9110#section-15.5.2", body["type"])
 	assert.Equal(t, "Unauthorized", body["title"])
-	assert.Equal(t, float64(401), body["status"])
+	assert.Equal(t, 401, jsonInt(t, body["status"]))
 	assert.Equal(t, "Invalid credentials.", body["detail"])
 	assert.Equal(t, "auth.invalid_credentials", body["errorCode"])
 	correlationID, isString := body["correlationId"].(string)
@@ -238,7 +250,7 @@ func TestRequestsBeyondThePermitLimitGetThe429Problem(t *testing.T) {
 	assert.Equal(t, "application/problem+json", third.Header.Get("Content-Type"))
 	assert.Equal(t, "https://tools.ietf.org/html/rfc9110#section-15.5.14", body["type"])
 	assert.Equal(t, "Too Many Requests", body["title"])
-	assert.Equal(t, float64(429), body["status"])
+	assert.Equal(t, 429, jsonInt(t, body["status"]))
 	assert.Equal(t, "The auth endpoint rate limit was exceeded; retry after the window elapses.", body["detail"])
 	assert.Equal(t, "auth.rate_limited", body["errorCode"])
 	assert.NotEmpty(t, body["correlationId"])

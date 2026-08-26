@@ -18,7 +18,30 @@ linters:
     - nolintlint
     - gocritic
     - depguard
+    # The security and error-handling half of the set (issue #30). errcheck
+    # above catches unchecked errors; errorlint catches errors compared or
+    # asserted in ways that break once a layer wraps. gosec is the security
+    # scanner the .NET analyzers' security rules correspond to. bodyclose and
+    # testifylint guard the two libraries the suites lean on hardest, and
+    # sloglint keeps the structured-logging call sites uniform — this codebase
+    # logs through log/slog everywhere.
+    - errorlint
+    - gosec
+    - bodyclose
+    - sloglint
+    - testifylint
   settings:
+    gosec:
+      excludes:
+        # G101 flags any constant whose name matches its credential heuristic.
+        # This codebase's error vocabulary is full of them by design —
+        # auth.token_missing, auth.token_invalid, "A valid bearer token is
+        # required." — so the rule fires only on identifiers that are wire
+        # strings, never on secrets. Credential literals have a dedicated,
+        # stricter gate: the secrets-hygiene CI job greps the whole tree
+        # against an explicit allowlist. That job owns this concern; G101 only
+        # adds noise on top of it.
+        - G101
     depguard:
       # One rule per layer per bounded context, mirroring the .NET
       # LayeringTests table. files globs are matched against the file's path
@@ -111,6 +134,28 @@ linters:
               desc: platform is a leaf others compose — it may not depend on the contexts
             - pkg: github.com/josnelihurt/code.examples.go.quotes/internal/auth
               desc: platform is a leaf others compose — it may not depend on the contexts
+
+  # Exclusions are per-linter and deliberately narrow.
+  exclusions:
+    rules:
+      # bodyclose cannot see a body closed through t.Cleanup, which is the
+      # right pattern for a helper that returns the response for the caller to
+      # read (cmd/quotesapi/wire_test.go's get/postJSON do exactly that). In
+      # test binaries a body that outlived its check would be collected at
+      # process exit anyway, so the rule buys nothing here and reports only
+      # false positives.
+      - path: '_test\.go'
+        linters:
+          - bodyclose
+      # gosec's taint analysis treats a container socket path read from the
+      # environment as attacker-controlled (G703). Test fixtures choose their
+      # own inputs; the threat model the scanner assumes does not apply. Scoped
+      # to G703 so the rest of gosec keeps running over the suites — the
+      # existing G204 suppression in tests/bdd stays load-bearing.
+      - path: '_test\.go'
+        text: 'G703'
+        linters:
+          - gosec
 
 formatters:
   enable:
