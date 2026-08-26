@@ -192,3 +192,22 @@ addendum):
    image, and only when `contracts/docker-build-base/**` changed.)
 3. Pin that digest: append `@sha256:…` to the `FROM` line of `Dockerfile.build`.
 4. Re-freeze the document with `scripts/update-contracts.sh` and commit it.
+
+## Discarded errors
+
+Writing an HTTP response body can fail, and when it does there is nothing the handler can
+do: the status line is already on the wire, the client is usually gone, and there is no
+second response to send. So the response writers here discard that error deliberately —
+`_ = json.NewEncoder(w).Encode(...)` in `problemjson` and the auth transport,
+`_, _ = w.Write(...)` in the health endpoints and the v3 documentation routes.
+
+**That is the blanket rule: a failed write to an HTTP response after the status has been
+sent is discarded, and needs no per-site comment.** Stating it once here keeps ten
+near-identical comments out of the code. `errcheck` is satisfied by the explicit `_ =`,
+which is the point of writing it rather than ignoring the value silently.
+
+A discard *outside* that rule does need its rationale at the call site, because a reader
+cannot tell it apart from an oversight. The three that exist say why in one trailing
+clause each — `internal/quotes/infrastructure/migrate.go`,
+`internal/platform/config/config.go` and `internal/quotes/domain/quote.go`. Follow that
+form rather than adding a new blanket exemption.
