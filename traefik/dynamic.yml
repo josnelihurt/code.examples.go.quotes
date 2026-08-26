@@ -1,0 +1,25 @@
+# Traefik dynamic configuration (ADR 0001): the whole route table, watched
+# live. Parity with the .NET YARP block — PathPrefix semantics keep the request
+# path unchanged, so the APIs see /api/v1/auth/* and /api/v3/quotes/* exactly
+# as the SPA emits them. No middleware, no TLS: the edge terminates plain HTTP
+# on the compose network. These are the only two routes.
+http:
+  routers:
+    auth:
+      entryPoints: [web]
+      rule: "PathPrefix(`/api/v1/auth`)"
+      service: authapi
+    quotes:
+      entryPoints: [web]
+      rule: "PathPrefix(`/api/v3/quotes`)"
+      service: quotesapi
+
+  services:
+    authapi:
+      loadBalancer:
+        servers:
+          - url: "http://authapi:8080"
+    quotesapi:
+      loadBalancer:
+        servers:
+          - url: "http://quotesapi:8080"

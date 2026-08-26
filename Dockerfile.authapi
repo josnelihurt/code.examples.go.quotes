@@ -1,0 +1,28 @@
+# The auth API image (ADR 0001). Build from the repository root — the Go build
+# needs go.mod/go.sum plus every package the composition root reaches:
+#
+#   podman build -f Dockerfile.authapi -t quotes-authapi .
+#
+# Builder pin and runtime pin live in scripts/images.env and are checked
+# against the FROM lines by scripts/check-image-tags.sh. CGO_ENABLED=0 keeps
+# the binary static so the scratch-ish alpine runtime needs no libc match.
+FROM docker.io/library/golang:1.27.0-alpine3.24 AS build
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY cmd/authapi ./cmd/authapi
+COPY internal ./internal
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/authapi ./cmd/authapi
+
+# Runtime: alpine (busybox wget drives the healthcheck — ADR 0001's podman
+# caveat), no shell-into-root, dedicated non-root uid. The compose topology
+# sets SERVER__ADDRESS; the default here keeps a bare `docker run` sane.
+FROM docker.io/library/alpine:3.23.5
+RUN adduser -D -H -u 10001 appuser
+USER appuser
+COPY --from=build /out/authapi /usr/local/bin/authapi
+ENV SERVER__ADDRESS=:8080
+EXPOSE 8080
+HEALTHCHECK --interval=5s --timeout=3s --start-period=5s --retries=12 \
+  CMD wget -qO- http://127.0.0.1:8080/alive || exit 1
+ENTRYPOINT ["/usr/local/bin/authapi"]

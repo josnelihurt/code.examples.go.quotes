@@ -1,4 +1,6 @@
 * [Home](/)
+* [Scalar (v3 API)](scalar/)
+* [Development credentials](dev-credentials.md)
 * [Contributing](contributing.md)
 * [Architecture decisions](architecture-decisions.md)
 * [Agentic workflow](agentic-workflow.md)

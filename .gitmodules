@@ -1,3 +1,6 @@
+[submodule "frontend"]
+	path = frontend
+	url = https://github.com/josnelihurt/code.examples.frontend.quotes.git
 [submodule "ci"]
 	path = ci
 	url = https://github.com/josnelihurt/code.examples.ci.git

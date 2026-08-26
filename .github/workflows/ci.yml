@@ -49,6 +49,7 @@ jobs:
       run_lint: ${{ steps.decide.outputs.run_lint }}
       run_codeql: ${{ steps.decide.outputs.run_codeql }}
       run_contract_drift: ${{ steps.decide.outputs.run_contract_drift }}
+      run_image_pins: ${{ steps.decide.outputs.run_image_pins }}
     steps:
       # Only pull_request diffs are filtered; the API listing needs no checkout. On
       # every other trigger (push to main, ci:full-build) the step is skipped and the
@@ -84,9 +85,14 @@ jobs:
               # scripts/images.env is the repo's one copy of the container tags and
               # scripts/e2e.env the sibling one-copy file for the e2e catalog's
               # connection values — a move in either must reach the jobs that boot
-              # containers.
+              # containers. The compose topology and the API Dockerfiles quote the
+              # pins literally, so an edit to any of them can drift a tag and must
+              # reach the image-pins job too.
               - 'scripts/images.env'
               - 'scripts/e2e.env'
+              - 'docker-compose.yaml'
+              - 'Dockerfile.authapi'
+              - 'Dockerfile.quotesapi'
             workflow:
               # CI itself or a script it executes: run the unfiltered matrix.
               - '.github/workflows/**'
@@ -94,12 +100,13 @@ jobs:
               # it carries are CI plumbing, so a pin move forces the full matrix.
               - 'ci'
               - 'scripts/lint.sh'
+              - 'scripts/check-image-tags.sh'
 
       # The decide pattern: the filter results fold into run_* outputs that gate
       # the matrix jobs (conventions and secrets-hygiene are ungated by design).
-      # Contract drift, build & test, lint and CodeQL are the gated consumers
-      # landed so far; later layers extend the step with their outputs
-      # (run_specs, run_e2e, run_image_pins) as each consuming job lands.
+      # Contract drift, build & test, lint, CodeQL and image pins are the gated
+      # consumers landed so far; later layers extend the step with their outputs
+      # (run_specs, run_e2e) as each consuming job lands.
       - name: Decide which jobs run
         id: decide
         env:
@@ -123,6 +130,7 @@ jobs:
             out "run_lint=true"
             out "run_codeql=true"
             out "run_contract_drift=true"
+            out "run_image_pins=true"
             flush
             exit 0
           fi
@@ -143,6 +151,10 @@ jobs:
           # inputs: the proto sources, the vendored protos, the export image and the
           # document itself.
           out "run_contract_drift=${FILTER_CONTRACTS:-false}"
+
+          # The image pins cover every container the topology can boot: the pin
+          # file, the compose file and the two API Dockerfiles that quote them.
+          out "run_image_pins=${pins}"
           flush
 
   # Branch names, commit subjects and PR titles are rules about the change itself,
@@ -234,6 +246,22 @@ jobs:
       - name: Fail on drift vs frozen contracts
         run: |
           diff -u docs/openapi/quotes-v3.openapi.json out/docs/openapi/quotes-v3.openapi.json
+
+  image-pins:
+    name: container image pin drift
+    runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.run_image_pins == 'true'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The pins in scripts/images.env are the one copy of what the compose
+      # topology runs; docker-compose.yaml and the API Dockerfiles must quote
+      # exactly those tags — a bump that misses a referencing file (or a
+      # hand-edit that floats to :latest) fails here instead of quietly booting
+      # two different images across CI, e2e and laptops.
+      - name: Check pins against the compose topology
+        run: ./scripts/check-image-tags.sh
 
   build-and-test:
     name: build & test (race + coverage)
