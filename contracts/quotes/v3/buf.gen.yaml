@@ -1,0 +1,10 @@
+# At this layer the contracts stage generates only the OpenAPI document. The Go
+# codegen plugins (protoc-gen-go, protoc-gen-go-grpc, protoc-gen-grpc-gateway)
+# land with the transport layer that consumes them — same-PR rule: a plugin
+# enters the build together with the code that makes it load-bearing.
+version: v2
+plugins:
+  - local: protoc-gen-openapiv2
+    out: /tmp
+    opt:
+      - logtostderr=true

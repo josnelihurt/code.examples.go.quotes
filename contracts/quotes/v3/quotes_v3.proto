@@ -1,0 +1,123 @@
+// Contract for this quote transport, served by ASP.NET Core's stock gRPC-JSON transcoding
+// (Microsoft.AspNetCore.Grpc.JsonTranscoding): the google.api.http rules below drive the
+// routing themselves — no adapter endpoints exist. The behavior is the platform runtime's
+// own and is pinned by tests: error bodies are the gRPC status envelope
+// ({"code","message","details"}) and create answers 200 without a Location header.
+// Paging scalars are declared `optional` so transcoding's JSON writer emits them even at
+// proto defaults (page = 1); without explicit presence they would be omitted from every
+// first-page response.
+//
+// The OpenAPI document for this transport is GENERATED from this file — the comments, the
+// google.api.http rules and the openapiv2 options below, via protoc-gen-openapiv2 driven
+// by buf — and served at /openapi/v3.json, so the proto stays the single contract of
+// record. (The generator emits Swagger 2.0; no maintained generator produces OpenAPI 3
+// from google.api.http rules.)
+syntax = "proto3";
+
+package quotes.v3;
+
+option go_package = "github.com/josnelihurt/code.examples.go.quotes/internal/quotes/api/v3/contract;contractv3";
+
+import "google/api/annotations.proto";
+import "protoc-gen-openapiv2/options/annotations.proto";
+
+// The document narrative and auth requirements live here, in the contract itself — the
+// generated OpenAPI document carries them verbatim.
+option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_swagger) = {
+  info: {
+    title: "Quotes.Api | v3";
+    version: "1.0.0";
+    description: "Quote catalog for the Aspire Quotes platform, served by stock gRPC-JSON transcoding: the google.api.http rules in this contract drive the routing.\n\n"
+                 "Every error response is the gRPC status envelope {code, message, details}; the machine-readable errorCode does not travel. "
+                 "Create answers 200 with the created quote and no Location header. Pagination is 1-based (page from 1, pageSize between 1 and 100, default 20). "
+                 "Send X-Correlation-Id to correlate calls; it is echoed on every response.";
+  };
+  security_definitions: {
+    security: {
+      key: "Bearer";
+      value: {
+        type: TYPE_API_KEY;
+        in: IN_HEADER;
+        name: "Authorization";
+        description: "Bearer JWT from the Auth API (POST /api/v1/auth/login). Reads require the quotes:read scope; create requires quotes:write.";
+      };
+    };
+  };
+  security: {
+    security_requirement: {
+      key: "Bearer";
+      value: {};
+    };
+  };
+};
+
+// A quote as served to an authenticated client.
+message Quote {
+  // Stable quote identifier.
+  string id = 1;
+  // Quote body text.
+  string text = 2;
+  // Attributed author of the quote.
+  string author = 3;
+}
+
+message GetRandomQuoteRequest {
+}
+
+message GetQuoteByIdRequest {
+  // Quote identifier as returned by create or list.
+  string id = 1;
+}
+
+message ListQuotesRequest {
+  // 1-based page number (minimum 1).
+  optional int32 page = 1;
+  // Items per page, between 1 and 100 (default 20).
+  optional int32 page_size = 2;
+}
+
+// Payload to add a quote to the catalog.
+message CreateQuoteRequest {
+  // Quote body text.
+  string text = 1;
+  // Attributed author of the quote.
+  string author = 2;
+}
+
+// One page of the quote catalog.
+message ListQuotesResponse {
+  // Quotes on this page, in stable catalog order.
+  repeated Quote items = 1;
+  // 1-based page number this response represents.
+  optional int32 page = 2;
+  // Number of items per page that was requested.
+  optional int32 page_size = 3;
+  // Total number of quotes in the catalog.
+  optional int32 total_items = 4;
+  // Total number of pages at the requested page size.
+  optional int32 total_pages = 5;
+}
+
+service QuoteService {
+  // Returns a random quote from the catalog.
+  rpc GetRandomQuote(GetRandomQuoteRequest) returns (Quote) {
+    option (google.api.http) = { get: "/api/v3/quotes/random" };
+  }
+
+  // Lists one page of the quote catalog in stable order. Fields not bound by the path
+  // (page, pageSize) travel as query parameters.
+  rpc ListQuotes(ListQuotesRequest) returns (ListQuotesResponse) {
+    option (google.api.http) = { get: "/api/v3/quotes" };
+  }
+
+  // Returns one quote by id.
+  rpc GetQuoteById(GetQuoteByIdRequest) returns (Quote) {
+    option (google.api.http) = { get: "/api/v3/quotes/{id}" };
+  }
+
+  // Adds a quote to the catalog; the request body maps onto the whole message. Answers
+  // 200 with the created quote — transcoding has no way to express 201 + Location.
+  rpc CreateQuote(CreateQuoteRequest) returns (Quote) {
+    option (google.api.http) = { post: "/api/v3/quotes" body: "*" };
+  }
+}

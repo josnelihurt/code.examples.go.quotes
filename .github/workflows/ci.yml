@@ -32,9 +32,10 @@ jobs:
   #
   # The filters below describe the repository's end-state Go layout; the gated
   # jobs that consume them land with the layers that make them load-bearing —
-  # build & test, lint (golangci-lint), CodeQL, BDD specs, full-stack e2e,
-  # contract drift and image-pin checks — each adding its decide output in the
-  # same PR that adds the job.
+  # build & test, lint (golangci-lint), CodeQL, BDD specs, full-stack e2e and
+  # image-pin checks — each adding its decide output in the same PR that adds
+  # the job. Contract drift is gated from the layer that adds the frozen
+  # document.
   changes:
     name: detect changed paths
     runs-on: ubuntu-latest
@@ -43,6 +44,8 @@ jobs:
       # contents-only grant would 403 that call and fail every PR run.
       contents: read
       pull-requests: read
+    outputs:
+      run_contract_drift: ${{ steps.decide.outputs.run_contract_drift }}
     steps:
       # Only pull_request diffs are filtered; the API listing needs no checkout. On
       # every other trigger (push to main, ci:full-build) the step is skipped and the
@@ -89,11 +92,10 @@ jobs:
               - 'ci'
 
       # The decide pattern: the filter results fold into run_* outputs that gate
-      # the matrix jobs. Nothing is gated yet — conventions and secrets-hygiene
-      # are ungated by design — so the step records the evaluation and later
-      # layers extend it with their outputs (run_build_and_test, run_lint,
-      # run_codeql, run_specs, run_e2e, run_contract_drift, run_image_pins) as
-      # each consuming job lands.
+      # the matrix jobs (conventions and secrets-hygiene are ungated by design).
+      # Contract drift is the first gated consumer; later layers extend the step
+      # with their outputs (run_build_and_test, run_lint, run_codeql, run_specs,
+      # run_e2e, run_image_pins) as each consuming job lands.
       - name: Decide which jobs run
         id: decide
         env:
@@ -106,11 +108,23 @@ jobs:
           FILTER_WORKFLOW: ${{ steps.filter.outputs.workflow }}
         run: |
           set -euo pipefail
+          decisions=""
+          out() { decisions+="$1"$'\n'; }
+          flush() { printf '%s' "${decisions}" >> "$GITHUB_OUTPUT"; }
+
           # Pushes to main, ci:full-build PRs and CI-configuration edits have no
-          # filtered diff to trust: when gated jobs exist they all run.
-          echo "event=${EVENT_NAME} full-build=${FULL_BUILD:-false}"
-          echo "backend=${FILTER_BACKEND:-false} frontend=${FILTER_FRONTEND:-false}"
-          echo "contracts=${FILTER_CONTRACTS:-false} pins=${FILTER_PINS:-false} workflow=${FILTER_WORKFLOW:-false}"
+          # filtered diff to trust: run every gated job.
+          if [ "${EVENT_NAME:-}" != "pull_request" ] || [ "${FULL_BUILD:-false}" = "true" ] || [ "${FILTER_WORKFLOW:-false}" = "true" ]; then
+            out "run_contract_drift=true"
+            flush
+            exit 0
+          fi
+
+          # The frozen document under docs/openapi drifts only through the contract
+          # inputs: the proto sources, the vendored protos, the export image and the
+          # document itself.
+          out "run_contract_drift=${FILTER_CONTRACTS:-false}"
+          flush
 
   # Branch names, commit subjects and PR titles are rules about the change itself,
   # not about the files it touches — no path gate (same posture as secrets-hygiene).
@@ -183,3 +197,21 @@ jobs:
             Dockerfile.build
             tests/**
           hint: 'Consolidate them into scripts/e2e.env (see the allowlist in ci.yml).'
+
+  contract-drift:
+    name: openapi contract drift
+    runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.run_contract_drift == 'true'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The frozen contract under docs/openapi is product: regenerate it hermetically
+      # (same pinned tools as scripts/update-contracts.sh, plain docker on the runner)
+      # and fail when it no longer matches.
+      - name: Export contracts
+        run: docker build -f Dockerfile.build --target contracts -o type=local,dest=out .
+
+      - name: Fail on drift vs frozen contracts
+        run: |
+          diff -u docs/openapi/quotes-v3.openapi.json out/docs/openapi/quotes-v3.openapi.json
