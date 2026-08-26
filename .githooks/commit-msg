@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Thin exec: the canonical commit-msg hook lives in the code.examples.ci
+# submodule (ci/conventions/scripts/commit-msg) and runs from disk — no
+# network, no gh at hook time. Opt in with scripts/setup-git-hooks.sh; CI
+# enforces the same rules via the SHA-pinned conventions action either way.
+set -euo pipefail
+ROOT="$(git rev-parse --show-toplevel)"
+hook="${ROOT}/ci/conventions/scripts/commit-msg"
+if [[ ! -f "${hook}" ]]; then
+  echo "the code.examples.ci submodule is not initialized — run: git submodule update --init ci" >&2
+  exit 2
+fi
+exec bash "${hook}" "$@"

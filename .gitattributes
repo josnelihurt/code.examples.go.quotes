@@ -1,0 +1,10 @@
+# Normalize the whole repo to LF on checkout and commit; editors and CI then agree.
+* text=auto eol=lf
+
+# Binary assets.
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary

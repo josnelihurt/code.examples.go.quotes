@@ -1,0 +1,185 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    # labeled re-evaluates the path gates so ci:full-build applied mid-PR retriggers
+    # ci with the full matrix (any other label re-runs the filtered set; the
+    # concurrency group below cancels the superseded run).
+    types: [opened, synchronize, reopened, labeled]
+
+# Superseded runs waste the container-heavy jobs later layers add (specs, e2e,
+# contract-drift); cancel them for PRs while keeping every push to main.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+# Actions are pinned to commit SHAs (tag in the trailing comment) so a mutable-tag
+# takeover cannot run third-party code against the repository.
+jobs:
+  # Path gating: every job except this one, secrets-hygiene (a whole-tree grep
+  # that costs seconds) and conventions (branch and commit rules describe the
+  # PR itself, not the files it touches) runs only when the diff touches the
+  # areas it consumes — a docs-only change should not pay for the full matrix.
+  # The skip happens at the job level on purpose: skipped check runs still
+  # satisfy the branch-protection checks, and the workflow still completes
+  # success so merge-me's ci-completion trigger keeps firing. A workflow-level
+  # paths filter would break both.
+  #
+  # The filters below describe the repository's end-state Go layout; the gated
+  # jobs that consume them land with the layers that make them load-bearing —
+  # build & test, lint (golangci-lint), CodeQL, BDD specs, full-stack e2e,
+  # contract drift and image-pin checks — each adding its decide output in the
+  # same PR that adds the job.
+  changes:
+    name: detect changed paths
+    runs-on: ubuntu-latest
+    permissions:
+      # paths-filter lists the PR's changed files via the API; the workflow-level
+      # contents-only grant would 403 that call and fail every PR run.
+      contents: read
+      pull-requests: read
+    steps:
+      # Only pull_request diffs are filtered; the API listing needs no checkout. On
+      # every other trigger (push to main, ci:full-build) the step is skipped and the
+      # decide step below forces the full matrix.
+      - name: Filter paths
+        id: filter
+        if: github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'ci:full-build')
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: |
+            backend:
+              - '**/*.go'
+              - 'go.mod'
+              - 'go.sum'
+              - 'sqlc.yaml'
+              - 'migrations/**'
+              - '.golangci.yml'
+              - 'Makefile'
+            frontend:
+              # The submodule pointer (the gitlink at frontend/). The SPA's own
+              # lint/unit/build gates live in code.examples.frontend.quotes's CI; a pointer
+              # move here means new SPA code runs against this backend in the
+              # full-stack e2e job.
+              - 'frontend'
+            contracts:
+              # Everything that can drift the frozen contracts: the proto sources
+              # under contracts/, the generated OpenAPI documents they produce, and
+              # the hermetic export image that regenerates them.
+              - 'contracts/**'
+              - 'docs/openapi/**'
+              - 'Dockerfile.build'
+            pins:
+              # scripts/images.env is the repo's one copy of the container tags and
+              # scripts/e2e.env the sibling one-copy file for the e2e catalog's
+              # connection values — a move in either must reach the jobs that boot
+              # containers.
+              - 'scripts/images.env'
+              - 'scripts/e2e.env'
+            workflow:
+              # CI itself: run the unfiltered matrix.
+              - '.github/workflows/**'
+              # The code.examples.ci submodule pin: the hooks and local tooling
+              # it carries are CI plumbing, so a pin move forces the full matrix.
+              - 'ci'
+
+      # The decide pattern: the filter results fold into run_* outputs that gate
+      # the matrix jobs. Nothing is gated yet — conventions and secrets-hygiene
+      # are ungated by design — so the step records the evaluation and later
+      # layers extend it with their outputs (run_build_and_test, run_lint,
+      # run_codeql, run_specs, run_e2e, run_contract_drift, run_image_pins) as
+      # each consuming job lands.
+      - name: Decide which jobs run
+        id: decide
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          FULL_BUILD: ${{ contains(github.event.pull_request.labels.*.name, 'ci:full-build') }}
+          FILTER_BACKEND: ${{ steps.filter.outputs.backend }}
+          FILTER_FRONTEND: ${{ steps.filter.outputs.frontend }}
+          FILTER_CONTRACTS: ${{ steps.filter.outputs.contracts }}
+          FILTER_PINS: ${{ steps.filter.outputs.pins }}
+          FILTER_WORKFLOW: ${{ steps.filter.outputs.workflow }}
+        run: |
+          set -euo pipefail
+          # Pushes to main, ci:full-build PRs and CI-configuration edits have no
+          # filtered diff to trust: when gated jobs exist they all run.
+          echo "event=${EVENT_NAME} full-build=${FULL_BUILD:-false}"
+          echo "backend=${FILTER_BACKEND:-false} frontend=${FILTER_FRONTEND:-false}"
+          echo "contracts=${FILTER_CONTRACTS:-false} pins=${FILTER_PINS:-false} workflow=${FILTER_WORKFLOW:-false}"
+
+  # Branch names, commit subjects and PR titles are rules about the change itself,
+  # not about the files it touches — no path gate (same posture as secrets-hygiene).
+  # Squash merges make the PR title the canonical commit on main, so the title is
+  # held to the commit rule; the (#N) suffix GitHub appends at merge time is the
+  # only difference, allowed by the push-side invocation. The same script backs the
+  # opt-in local hooks (scripts/setup-git-hooks.sh); the rules live in
+  # docs/contributing.md.
+  conventions:
+    name: conventions (branch names + commit messages)
+    runs-on: ubuntu-latest
+    permissions:
+      # The action reads the PR's commit list from the pulls API.
+      contents: read
+      pull-requests: read
+    steps:
+      # fetch-depth 0 because the action's push-to-main range mode reads history.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      # The canonical rules live in the shared toolkit; the exemption covers
+      # dependabot's automation branches (their names are not ours to choose).
+      - uses: josnelihurt/code.examples.ci/conventions@914ce2f68120ace140da1a445d44e854c97fb168 # v1
+        with:
+          branch-exempt-regex: '^dependabot/'
+
+  # Ungated on purpose: the grep covers the whole tree (the docs allowlist included)
+  # and costs seconds — markdown edits are exactly its business.
+  secrets-hygiene:
+    name: secrets hygiene (credential literals stay in the allowlist)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The seed's scaffolding credentials (this port serves the same frontend and
+      # the same local users, so the literals carry over) live in exactly one
+      # documentation location (docs/dev-credentials.md), one code location per
+      # credential (the implementing type, refused in Production), and the tests
+      # that authenticate against them. Everything else fails: a literal that
+      # exists only to be copy-pasted is how forks leak.
+      - uses: josnelihurt/code.examples.ci/secrets-hygiene@914ce2f68120ace140da1a445d44e854c97fb168 # v1
+        with:
+          pattern: 'supersecret|readsecret|Dev-Signing-Key|AspireQuotes-Local2!'
+          exclude: |
+            **/bin/**
+            **/obj/**
+            .github/workflows/ci.yml
+            tests/**
+            docs/dev-credentials.md
+            src/Auth/Auth.Infrastructure/HardcodedCredentialStore.cs
+            src/Auth/Auth.Infrastructure/README.md
+            src/ServiceDefaults/JwtAuthExtensions.cs
+            src/ServiceDefaults/README.md
+          hint: 'Consolidate them into docs/dev-credentials.md (see the allowlist in ci.yml).'
+
+      # The throwaway e2e catalog credentials have exactly one home —
+      # scripts/e2e.env — so changing them can never mean editing three files
+      # in sync. The sealed world inside Dockerfile.build's export stage and
+      # the tests are the only other allowed homes.
+      - uses: josnelihurt/code.examples.ci/secrets-hygiene@914ce2f68120ace140da1a445d44e854c97fb168 # v1
+        with:
+          pattern: 'POSTGRES_PASSWORD=postgres|Password=postgres|PASSWORD .postgres.'
+          exclude: |
+            **/bin/**
+            **/obj/**
+            **/pnpm-lock.yaml
+            .github/workflows/ci.yml
+            scripts/e2e.env
+            Dockerfile.build
+            tests/**
+          hint: 'Consolidate them into scripts/e2e.env (see the allowlist in ci.yml).'
