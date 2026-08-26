@@ -8,8 +8,13 @@ import "context"
 type QuoteAddOutcome int
 
 const (
+	// QuoteAddUnknown is the zero value: no outcome was determined. It is what
+	// an adapter returns beside a non-nil error, so a caller that reads the
+	// outcome without checking the error first gets a value that means
+	// nothing rather than one that reads as success.
+	QuoteAddUnknown QuoteAddOutcome = iota
 	// QuoteAdded means the quote was persisted.
-	QuoteAdded QuoteAddOutcome = iota
+	QuoteAdded
 	// QuoteDuplicateFingerprint means the catalog already holds a quote with
 	// the same fingerprint and nothing was written.
 	QuoteDuplicateFingerprint
@@ -24,11 +29,15 @@ type QuotePage struct {
 
 // QuoteRepository is the persistence port for the quote catalog.
 type QuoteRepository interface {
-	// GetRandom returns a random quote, or nil when the catalog is empty.
+	// GetRandom returns a random quote, or an error satisfying
+	// errors.Is(err, NotFound()) when the catalog is empty. The returned quote
+	// is non-nil whenever the error is nil.
 	GetRandom(ctx context.Context) (*Quote, error)
 
-	// GetByID returns the quote with the given id, or nil when it does not
-	// exist.
+	// GetByID returns the quote with the given id, or an error satisfying
+	// errors.Is(err, NotFound()) when it does not exist — a blank id included,
+	// since no catalog can hold one. The returned quote is non-nil whenever
+	// the error is nil.
 	GetByID(ctx context.Context, id string) (*Quote, error)
 
 	// List returns the take items starting at offset skip in stable catalog

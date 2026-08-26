@@ -23,13 +23,11 @@ func (uc *GetRandomQuoteUseCase) Execute(ctx context.Context) (QuoteDto, error) 
 		return QuoteDto{}, err
 	}
 
+	// An empty catalog reaches us as domain.NotFound() from the port, so the
+	// absence needs no separate branch here — it propagates as itself.
 	quote, err := uc.quotes.GetRandom(ctx)
 	if err != nil {
 		return QuoteDto{}, err
-	}
-
-	if quote == nil {
-		return QuoteDto{}, domain.NotFound()
 	}
 
 	return toDto(quote), nil

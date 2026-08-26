@@ -264,8 +264,14 @@ func TestGetQuoteByIdFindsAndMisses(t *testing.T) {
 
 	missing, err := repository.GetByID(context.Background(), "does-not-exist")
 
-	require.NoError(t, err)
+	require.ErrorIs(t, err, domain.NotFound())
 	assert.Nil(t, missing)
+
+	// A blank id never reaches the database and answers the same way.
+	blank, err := repository.GetByID(context.Background(), "   ")
+
+	require.ErrorIs(t, err, domain.NotFound())
+	assert.Nil(t, blank)
 }
 
 func TestListPagesTheSeededCatalogInStableOrder(t *testing.T) {

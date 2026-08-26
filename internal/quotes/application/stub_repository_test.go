@@ -36,17 +36,32 @@ type stubQuoteRepository struct {
 	addCalls       []*domain.Quote
 }
 
+// GetRandom honours the port contract: an empty catalog — the zero-value stub
+// with no quote and no error configured — answers domain.NotFound() rather
+// than a nil quote beside a nil error.
 func (s *stubQuoteRepository) GetRandom(context.Context) (*domain.Quote, error) {
 	s.getRandomCalls++
-	return s.random, s.randomErr
+	if s.randomErr != nil {
+		return nil, s.randomErr
+	}
+	if s.random == nil {
+		return nil, domain.NotFound()
+	}
+	return s.random, nil
 }
 
+// GetByID honours the same contract: an id the map does not hold is
+// domain.NotFound(), not a nil quote.
 func (s *stubQuoteRepository) GetByID(_ context.Context, id string) (*domain.Quote, error) {
 	s.getByIDCalls++
 	if s.byIDErr != nil {
 		return nil, s.byIDErr
 	}
-	return s.byID[id], nil
+	quote, ok := s.byID[id]
+	if !ok {
+		return nil, domain.NotFound()
+	}
+	return quote, nil
 }
 
 func (s *stubQuoteRepository) List(_ context.Context, skip, take int) (domain.QuotePage, error) {
