@@ -2,23 +2,21 @@
 // RFC 7662-style token introspection issuing HS256 JWTs. It is the
 // composition root — the only place config, telemetry, the auth adapters and
 // the transport meet.
+//
+// Layout: main.go owns OS signals and boot orchestration; wire.go owns
+// newHandler (the mux + middleware onion the wire tests share).
 package main
 
 import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"github.com/josnelihurt/code.examples.go.quotes/internal/auth/api"
-	"github.com/josnelihurt/code.examples.go.quotes/internal/auth/application"
-	"github.com/josnelihurt/code.examples.go.quotes/internal/auth/infrastructure"
 	"github.com/josnelihurt/code.examples.go.quotes/internal/platform/config"
-	"github.com/josnelihurt/code.examples.go.quotes/internal/platform/correlation"
 	"github.com/josnelihurt/code.examples.go.quotes/internal/platform/httpserver"
 	"github.com/josnelihurt/code.examples.go.quotes/internal/platform/telemetry"
 )
@@ -59,33 +57,17 @@ func run() error {
 		}
 	}()
 
-	credentials, err := infrastructure.NewHardcodedCredentialStore(cfg.Environment)
-	if err != nil {
-		return err
-	}
-	tokens, err := infrastructure.NewJwtTokenService(&cfg.Jwt, cfg.Environment, logger)
-	if err != nil {
-		return err
-	}
-
-	service := application.NewAuthService(credentials, tokens)
-	limiter := infrastructure.NewRateLimiter(
+	handler, err := newHandler(
+		logger,
+		cfg.Environment,
+		&cfg.Jwt,
 		cfg.RateLimiting.Auth.PermitLimit,
-		time.Duration(cfg.RateLimiting.Auth.WindowSeconds)*time.Second)
-	metrics := telemetry.NewMetrics()
-
-	mux := http.NewServeMux()
-	api.New(service, limiter, metrics, logger).Register(mux)
-	mux.HandleFunc("GET "+httpserver.HealthPath, httpserver.HandleHealth(nil))
-	mux.HandleFunc("GET "+httpserver.AlivePath, httpserver.HandleAlive())
-
-	// Outside-in: server spans (health probes excluded) -> correlation (so the
-	// request logger and every problem body carry the id) -> request logging ->
-	// routes.
-	var handler http.Handler = mux
-	handler = httpserver.RequestLogger(logger, handler)
-	handler = correlation.Middleware(handler)
-	handler = telemetry.HTTPHandler(serviceName, handler)
+		time.Duration(cfg.RateLimiting.Auth.WindowSeconds)*time.Second,
+		telemetry.NewMetrics(),
+	)
+	if err != nil {
+		return err
+	}
 
 	logger.Info("starting the auth api", "addr", cfg.Server.Address)
 	return httpserver.Serve(ctx, logger, cfg.Server.Address, handler)

@@ -1,9 +1,11 @@
 # quotesapi
 
-The quotes service's **composition root** (`main.go`) and the place the two bounded
-contexts meet: it adapts the auth context's token validator onto the v3 transport's
-`Authenticator` port (`bearerAuthenticator`), because the layering guard forbids either
-context from importing the other. The domain and use cases live in
+The quotes service's **composition root** and the place the two bounded contexts meet:
+it adapts the auth context's token validator onto the v3 transport's `Authenticator`
+port (`bearerAuthenticator`), because the layering guard forbids either context from
+importing the other. Layout: [`main.go`](main.go) (OS signals + boot orchestration),
+[`wire.go`](wire.go) (`openCatalog` + `newHandler`), [`auth_adapter.go`](auth_adapter.go)
+(the auth∩quotes seam). The domain and use cases live in
 [internal/quotes](../../internal/quotes/README.md); the platform kit in
 [internal/platform](../../internal/platform/README.md).
 

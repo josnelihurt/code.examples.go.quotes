@@ -1,4 +1,4 @@
-package main_test
+package main
 
 import (
 	"bytes"
@@ -17,8 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/josnelihurt/code.examples.go.quotes/internal/auth/api"
-	"github.com/josnelihurt/code.examples.go.quotes/internal/auth/application"
-	"github.com/josnelihurt/code.examples.go.quotes/internal/auth/infrastructure"
 	"github.com/josnelihurt/code.examples.go.quotes/internal/platform/config"
 	"github.com/josnelihurt/code.examples.go.quotes/internal/platform/correlation"
 	"github.com/josnelihurt/code.examples.go.quotes/internal/platform/httpserver"
@@ -26,13 +24,12 @@ import (
 )
 
 // These tests live beside the composition root (not under internal/auth/api)
-// on purpose: the full stack composes the infrastructure adapters, and the
-// depguard layering rules keep the api package clean of exactly that.
+// on purpose: they exercise newHandler — the same stack run() serves — and the
+// depguard layering rules keep the api package clean of infrastructure.
 
 const wireSigningKey = "wire-test-signing-key-that-is-long-enough-1234"
 
-// newStack builds the serving chain exactly as main composes it, minus the
-// OTel wrapper (no exporter in tests): routes -> request logger -> correlation.
+// newStack builds the serving chain via newHandler (Development + test key).
 func newStack(t *testing.T, permitLimit int) http.Handler {
 	t.Helper()
 	return newStackWithKey(t, permitLimit, wireSigningKey)
@@ -41,25 +38,15 @@ func newStack(t *testing.T, permitLimit int) http.Handler {
 func newStackWithKey(t *testing.T, permitLimit int, signingKey string) http.Handler {
 	t.Helper()
 
-	logger := slog.New(slog.DiscardHandler)
-
-	credentials, err := infrastructure.NewHardcodedCredentialStore(config.EnvironmentDevelopment)
+	handler, err := newHandler(
+		slog.New(slog.DiscardHandler),
+		config.EnvironmentDevelopment,
+		&config.Jwt{SigningKey: signingKey},
+		permitLimit,
+		time.Minute,
+		telemetry.NewMetrics(),
+	)
 	require.NoError(t, err)
-	tokens, err := infrastructure.NewJwtTokenService(
-		&config.Jwt{SigningKey: signingKey}, config.EnvironmentDevelopment, logger)
-	require.NoError(t, err)
-
-	service := application.NewAuthService(credentials, tokens)
-	limiter := infrastructure.NewRateLimiter(permitLimit, time.Minute)
-
-	mux := http.NewServeMux()
-	api.New(service, limiter, telemetry.NewMetrics(), logger).Register(mux)
-	mux.HandleFunc("GET "+httpserver.HealthPath, httpserver.HandleHealth(nil))
-	mux.HandleFunc("GET "+httpserver.AlivePath, httpserver.HandleAlive())
-
-	var handler http.Handler = mux
-	handler = httpserver.RequestLogger(logger, handler)
-	handler = correlation.Middleware(handler)
 	return handler
 }
 
