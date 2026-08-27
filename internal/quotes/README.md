@@ -1,7 +1,7 @@
 # quotes context
 
-The quotes bounded context, layered exactly like the .NET original's Quotes projects —
-one folder per layer, dependencies pointing one way only, enforced by depguard (see
+The quotes bounded context: one folder per layer, dependencies pointing one way only,
+enforced by depguard (see
 [ADR 0009](../../docs/adr/0009-lint-and-architecture-guard.md)):
 
 | Layer | Folder | Owns | May import |

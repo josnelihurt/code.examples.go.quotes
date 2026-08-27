@@ -21,10 +21,10 @@ sections are:
 - **B. Layer independence** — builds, tests and lint pass *at this level's commit*, not only at
   the stack tip; the diff against the parent touches only files this layer owns; a layer adding
   a CI job or a load-bearing file extends the `changes` path filters in the same PR.
-- **C. Parity** — the .NET v3 wire semantics listed there (error envelope, gRPC→HTTP status
+- **C. Wire semantics** — the v3 semantics listed there (error envelope, gRPC→HTTP status
   mapping, paging defaults and bounds, `X-Correlation-Id` echo, the 401 problem+json body with
-  `WWW-Authenticate`, create answering 200 with no `Location`), and the ADR mapping tables
-  updated wherever the layer changes a mapping.
+  `WWW-Authenticate`, create answering 200 with no `Location`), and the ADR recording the
+  decision updated wherever the layer changes one of them deliberately.
 - **D. Hygiene** — no secrets, no stray debug output or dead code, documentation updated
   alongside the change, PR body carrying What / Stack / Review pointers / Evidence-at-this-level.
 

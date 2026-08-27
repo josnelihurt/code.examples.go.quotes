@@ -1,8 +1,8 @@
 # platform
 
-The shared host kit every API composes — the .NET seed's `ServiceDefaults` project,
-expressed as a leaf Go package. Depguard pins it: platform may not import either
-bounded context; the contexts compose it at their edges.
+The shared host kit every API composes, as a leaf below both bounded contexts. Depguard
+pins that: platform may not import either context; the contexts compose it at their
+edges.
 
 | Package | Owns |
 |---------|------|
@@ -11,6 +11,11 @@ bounded context; the contexts compose it at their edges.
 | [httpserver](httpserver/) | `/health` + `/alive` handlers, the slog request logger, the graceful-shutdown serve loop |
 | [problemjson](problemjson/) | the single RFC 9457 envelope (`type`/`title`/`detail`/`status` + `errorCode`, `correlationId`, `traceId`) every problem body renders through |
 | [telemetry](telemetry/) | the OTel pipeline — no-op without `OTEL_EXPORTER_OTLP_ENDPOINT` — plus the six custom counters (ADR 0005) |
+
+The kit is a leaf, not a flat set: `telemetry` composes `httpserver` (for the probe-path
+filter), and `httpserver` and `problemjson` both compose `correlation`. Depguard says
+nothing about imports *inside* `internal/platform` — the ordering is held by review, and
+a new cycle here would be a design change, not a lint failure.
 
 Each package carries its own test file (`config_test.go`, `correlation_test.go`, …)
 inside the `make test` sweep. The observability page unpacks the counter names and

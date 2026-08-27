@@ -9,8 +9,8 @@ named file decides.
 
 ## R1. The layering guard is machine-enforced
 
-`.golangci.yml` encodes a `depguard` rule per layer per bounded context — nine rules, the
-analogue of the .NET `NetArchTest` LayeringTests (ADR 0009). The shape:
+`.golangci.yml` encodes a `depguard` rule per layer per bounded context — nine rules, so the
+layering table fails lint rather than review (ADR 0009). The shape:
 
 - **`quotes-domain`, `auth-domain`** — import *nothing* from their own upper layers
   (application, infrastructure, api), nothing from the other bounded context, and nothing from
@@ -35,10 +35,10 @@ a breaking change**. Transport maps code → status; the domain knows nothing ab
 (`statusFor` in `internal/auth/api/authapi.go`, `toStatusError` in
 `internal/quotes/api/v3/service.go`).
 
-## R3. Wire parity with the .NET reference is pinned, not approximate
+## R3. The v3 wire semantics are pinned, not approximate
 
-This is a port of `code.examples.net.quotes`, and drift tests on both sides pin the wire. The
-semantics a change must not alter:
+The wire tests and the specs pin them here, and a sibling .NET service over the same contract
+pins them on its side. The semantics a change must not alter:
 
 - the error envelope — `{"code":N,"message":…}` with `"details":[]` **present**
 - the gRPC → HTTP status mapping (`toStatusError`)
@@ -49,8 +49,8 @@ semantics a change must not alter:
 - `loginResponse` field order: `accessToken, correlationId, expiresIn, username`
 - `validateResponse.username` is `*string` so an invalid token writes an explicit `null`
 
-Where a layer changes a mapping, the .NET mapping table in the relevant ADR is updated in the
-same layer.
+Where a layer changes one of these deliberately, the ADR recording that decision is updated in
+the same layer.
 
 ## R4. The proto is the single contract of record
 
@@ -122,8 +122,8 @@ reference-checked page fails the gate.
 ## R10. House style
 
 Comments explain *why*, in full sentences, above the declaration, and they are dense — this
-repository documents the constraint that forced each decision, frequently citing the .NET
-original or the ADR. A change that reads as if a different author wrote it is a review finding.
+repository documents the constraint that forced each decision, usually citing the ADR that
+records it. A change that reads as if a different author wrote it is a review finding.
 Match the surrounding density; do not strip it and do not pad it.
 
 ## Gates

@@ -23,8 +23,8 @@ Never open one large PR. Decompose the change into an ordered chain in which **e
 level compiles, passes lint, and passes every CI gate independently**. If an
 intermediate level would be red, the split is wrong — redo the split.
 
-The recipe (proven in the .NET seed on its two-layer PostgreSQL-catalog stack — catalog
-storage beneath the repository port):
+The recipe (proven on a two-layer PostgreSQL-catalog stack — catalog storage beneath the
+repository port):
 
 1. **Build and verify the end state first** — `go build ./...`, `go test ./...` and
    `golangci-lint run` green (plus the suite scripts the layers under change carry:

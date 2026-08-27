@@ -27,7 +27,7 @@ boot itself tolerates a database still becoming healthy → the pgx pool → the
 the token validator, the four use cases → the grpc server + gateway + host mux → serve
 with graceful shutdown (HTTP drain first, then `GracefulStop`).
 
-`cmd/quotesapi/wire_test.go` boots this composition in-process and pins the wire
-semantics the .NET drift tests pinned: the error envelope with `"details":[]`, the
+`cmd/quotesapi/wire_test.go` boots this composition in-process and pins the v3 wire
+semantics against drift: the error envelope with `"details":[]`, the
 gRPC→HTTP status table, paging defaults, the `X-Correlation-Id` echo, the 401
 problem+json with `WWW-Authenticate`, and create answering 200 with no `Location`.
