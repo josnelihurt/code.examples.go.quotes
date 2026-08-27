@@ -11,7 +11,7 @@ the frozen, generated OpenAPI document is the machine-readable truth
 - `GET /openapi/v3.json` on quotesapi — the frozen document served verbatim (the same
   embedded bytes the `contract-drift` CI job diffs)
 - `GET /scalar` on quotesapi — the interactive Scalar reference pointing at that document
-- With the dev profile up: the Docsify site at `http://localhost:3001` carries the same
+- With the dev profile up: the Docsify site at `http://localhost:8080/docs/` carries the same
   [Scalar page](scalar/) (the explicit `index.html` matters under nginx)
 
 Scalar is the interactive client for humans; the specs (`./scripts/bdd.sh`) are the

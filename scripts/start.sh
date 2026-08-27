@@ -94,18 +94,36 @@ fi
 
 compose_up
 
+EDGE_PORT="${QUOTES_EDGE_PORT:-8080}"
+EDGE="http://localhost:${EDGE_PORT}"
+
 echo
-echo "verifying the edge round-trip (http://localhost:8080)..."
+echo "stack is up — single entry at ${EDGE}"
+echo "  APIs     ${EDGE}/api/v1/auth  ${EDGE}/api/v3/quotes"
+if [[ " ${profiles[*]} " == *" dev "* ]]; then
+  echo "  docs     ${EDGE}/docs/"
+  echo "  pgweb    ${EDGE}/pgweb/"
+fi
+if [[ " ${profiles[*]} " == *" fullstack "* ]]; then
+  echo "  SPA      ${EDGE}/"
+fi
+
+echo
+echo "verifying the edge round-trip (${EDGE})..."
 if [ -z "${QUOTES_DEV_USERNAME:-}" ] || [ -z "${QUOTES_DEV_PASSWORD:-}" ]; then
   echo "  skipped: set QUOTES_DEV_USERNAME/QUOTES_DEV_PASSWORD (see docs/dev-credentials.md) to run the authenticated probes"
   echo "  unauthenticated probes:"
-  curl -fsS -o /dev/null -w '  edge     GET  /            -> %{http_code}\n' http://localhost:8080/ || true
-  curl -fsS -o /dev/null -w '  edge     GET  /api/v3/quotes (no token) -> %{http_code}\n' "http://localhost:8080/api/v3/quotes?page=1&page_size=2" || true
+  if [[ " ${profiles[*]} " == *" fullstack "* ]]; then
+    curl -fsS -o /dev/null -w '  edge     GET  /            -> %{http_code}\n' "${EDGE}/" || true
+  elif [[ " ${profiles[*]} " == *" dev "* ]]; then
+    curl -fsS -o /dev/null -w '  edge     GET  /docs/        -> %{http_code}\n' "${EDGE}/docs/" || true
+  fi
+  curl -fsS -o /dev/null -w '  edge     GET  /api/v3/quotes (no token) -> %{http_code}\n' "${EDGE}/api/v3/quotes?page=1&page_size=2" || true
   exit 0
 fi
 
 login() {
-  curl -fsS -X POST http://localhost:8080/api/v1/auth/login \
+  curl -fsS -X POST "${EDGE}/api/v1/auth/login" \
     -H 'Content-Type: application/json' \
     -d "{\"username\":\"${QUOTES_DEV_USERNAME}\",\"password\":\"${QUOTES_DEV_PASSWORD}\"}"
 }
@@ -118,6 +136,6 @@ case "${token}" in
   *) echo "  login through the edge failed: no accessToken in the response" >&2; exit 1 ;;
 esac
 
-body="$(curl -fsS -H "Authorization: Bearer ${token}" "http://localhost:8080/api/v3/quotes?page=1&page_size=2")"
+body="$(curl -fsS -H "Authorization: Bearer ${token}" "${EDGE}/api/v3/quotes?page=1&page_size=2")"
 items="$(printf '%s' "${body}" | sed -E 's/.*"items" *: *\[//; s/\].*//' | grep -o '"id"' | wc -l | tr -d ' ')"
 echo "  quotes   GET  /api/v3/quotes?page=1&page_size=2 -> 200 (${items} items: routing, migration seeding and JWT parity all hold)"

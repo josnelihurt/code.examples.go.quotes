@@ -63,14 +63,14 @@ that round-trip to prove the stack: login, then one authenticated page of quotes
 
 | Service | URL | Profile |
 |---------|-----|---------|
-| edge (Traefik) | `http://localhost:8080` | every profile |
-| Docsify docs + Scalar | `http://localhost:3001` | dev |
-| pgweb (catalog browser) | `http://localhost:8081` | dev |
-| Vite dev server (SPA) | `http://localhost:5173` | fullstack |
+| edge (Traefik) | `http://localhost:8080` | every profile — the only published host port |
+| Docsify docs + Scalar | `http://localhost:8080/docs/` | dev |
+| pgweb (catalog browser) | `http://localhost:8080/pgweb/` | dev |
+| Vite dev server (SPA) | `http://localhost:8080/` | fullstack |
 
 ```bash
 ./scripts/start.sh --core         # postgres + both APIs + edge only
-./scripts/start.sh --fullstack    # dev + the SPA (Vite on :5173)
+./scripts/start.sh --fullstack    # dev + the SPA at /
 ./scripts/start.sh down           # tear it all down
 ```
 

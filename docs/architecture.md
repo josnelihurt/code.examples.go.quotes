@@ -24,27 +24,31 @@ flowchart LR
   auth["authapi"]
   quotes["quotesapi"]
   pg[("postgres - quotesdb")]
-  docs["docs - nginx :3001"]
-  pgweb["pgweb :8081"]
-  vite["frontend - Vite :5173"]
+  docs["docs - nginx /docs"]
+  pgweb["pgweb /pgweb"]
+  vite["frontend - Vite /"]
 
   user --> edge
-  user --> docs
-  user --> pgweb
-  user --> vite
   edge -->|"/api/v1/auth"| auth
   edge -->|"/api/v3/quotes"| quotes
+  edge -->|"/docs"| docs
+  edge -->|"/pgweb"| pgweb
+  edge -->|"/"| vite
   quotes -->|migrate + seed at boot| pg
   pgweb --- pg
 ```
 
-Only two routes exist (`PathPrefix` semantics — the APIs see the request path exactly as
-the SPA emits it):
+Traefik is the only published host port. API routes keep `PathPrefix` semantics — the
+APIs see the request path exactly as the SPA emits it. Dev surfaces join by path prefix
+(ADR 0010); StripPrefix lets each backend keep serving from `/` internally:
 
 | Route | Service | Notes |
 |-------|---------|-------|
 | `/api/v1/auth` | authapi | login + introspection |
 | `/api/v3/quotes` | quotesapi | the proto transport |
+| `/docs` | docs | Docsify + Scalar (dev profile) |
+| `/pgweb` | pgweb | catalog browser (dev profile) |
+| `/` | frontend | Vite SPA (fullstack profile) |
 
 `authapi` owns no database; `quotesapi` never calls authapi on the request path — it
 validates tokens locally with the shared HS256 key (`JWT__SIGNINGKEY`, one value for both
@@ -52,9 +56,9 @@ sides; see [dev credentials](dev-credentials.md)). Healthchecks + `depends_on` r
 Aspire's `WaitFor`, and the quotesapi boot additionally retries database connects itself
 because podman-compose's conditional ordering has bug history.
 
-Profiles: unprofiled = core (postgres + both APIs + edge); `dev` adds the docs server
-(:3001) and pgweb (:8081); `fullstack` adds the Vite dev server (:5173), its proxy
-pointing at the edge so the browser story is one origin. `scripts/start.sh` drives the
+Profiles: unprofiled = core (postgres + both APIs + edge); `dev` adds docs and pgweb
+behind `/docs` and `/pgweb`; `fullstack` adds the Vite dev server at `/`. When the SPA
+is up, browser API calls are same-origin through the edge. `scripts/start.sh` drives the
 selection.
 
 ## Layering

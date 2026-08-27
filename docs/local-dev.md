@@ -18,27 +18,27 @@
 ```bash
 ./scripts/start.sh               # dev: postgres + both APIs + edge + docs + pgweb
 ./scripts/start.sh --core        # postgres + both APIs + edge
-./scripts/start.sh --fullstack   # dev + the Vite dev server (:5173)
+./scripts/start.sh --fullstack   # dev + the SPA at /
 ./scripts/start.sh down          # tear it all down
 ```
 
 `start.sh` verifies the edge round-trip after the stack is healthy: it logs in through
-`http://localhost:8080` with `QUOTES_DEV_USERNAME` / `QUOTES_DEV_PASSWORD` (the
-documented development users — [dev credentials](dev-credentials.md)) and reads one
-page of quotes with the minted token. Without those variables it prints the
-unauthenticated probes instead.
+the edge with `QUOTES_DEV_USERNAME` / `QUOTES_DEV_PASSWORD` (the documented development
+users — [dev credentials](dev-credentials.md)) and reads one page of quotes with the
+minted token. Without those variables it prints the unauthenticated probes instead.
 
 | Service | URL |
 |---------|-----|
-| edge | `http://localhost:8080` (`QUOTES_EDGE_PORT` moves it) |
-| docs | `http://localhost:3001` |
-| pgweb | `http://localhost:8081` (pre-connected to the catalog) |
-| SPA | `http://localhost:5173` (fullstack profile; pick `v3` in the UI's version switcher) |
+| edge (APIs + dev surfaces) | `http://localhost:8080` (`QUOTES_EDGE_PORT` moves the whole front door) |
+| docs | `http://localhost:8080/docs/` (dev profile) |
+| pgweb | `http://localhost:8080/pgweb/` (dev profile; pre-connected to the catalog) |
+| SPA | `http://localhost:8080/` (fullstack profile; pick `v3` in the UI's version switcher) |
 
-Both APIs bind `:8080` **in-container** (`SERVER__ADDRESS`); the edge is the only
-published front door. The one shared secret is `AUTH_SIGNING_KEY` — the compose default
-is the public local-development value; override it with any value of at least 32 bytes
-(see [dev credentials](dev-credentials.md)).
+Both APIs bind `:8080` **in-container** (`SERVER__ADDRESS`); Traefik is the only service
+with a published host port. Dev surfaces (docs, pgweb, SPA) are routed by path prefix
+(ADR 0010). The one shared secret is `AUTH_SIGNING_KEY` — the compose default is the
+public local-development value; override it with any value of at least 32 bytes (see
+[dev credentials](dev-credentials.md)).
 
 ## Common tasks
 
