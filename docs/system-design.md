@@ -18,22 +18,24 @@ flowchart LR
   quotes["quotesapi"]
   pg[("postgres - quotesdb")]
   site["docs - nginx /docs"]
-  spa["frontend - Vite SPA /"]
+  spa["frontend - Vite SPA /app"]
+  dash["Traefik dashboard /"]
 
   user --> edge
   edge --> auth
   edge --> quotes
   edge --> site
   edge --> spa
+  edge --> dash
   quotes --> pg
 ```
 
 Two bounded contexts, one edge, one database, one SPA. Traefik is the only published
-host port; dev surfaces and the SPA join by path prefix (ADR 0010). `authapi` mints
-tokens; `quotesapi` validates them locally (golang-jwt) and never calls back on the
-request path. The SPA is consumed as a pinned git submodule — its own repository carries
-its tests and its lint gates; from this checkout it runs in the fullstack profile and
-the e2e suite.
+host port; `/` opens the Traefik dashboard, and dev surfaces plus the SPA join by path
+prefix (ADR 0010). `authapi` mints tokens; `quotesapi` validates them locally
+(golang-jwt) and never calls back on the request path. The SPA is consumed as a pinned
+git submodule — its own repository carries its tests and its lint gates; from this
+checkout it runs in the fullstack profile and the e2e suite.
 
 ## Runtime topology
 
@@ -46,7 +48,8 @@ flowchart LR
   edge["edge - Traefik, host :8080 only"]
   docs["docs - nginx /docs (dev profile)"]
   pgweb["pgweb /pgweb (dev profile)"]
-  vite["frontend - Vite / (fullstack profile)"]
+  vite["frontend - Vite /app (fullstack profile)"]
+  dash["dashboard / → /dashboard/"]
 
   key -->|"JWT__SIGNINGKEY"| auth
   key -->|"JWT__SIGNINGKEY"| quotes
@@ -57,6 +60,7 @@ flowchart LR
   edge --> docs
   edge --> pgweb
   edge --> vite
+  edge --> dash
 ```
 
 Three things carry the wiring:

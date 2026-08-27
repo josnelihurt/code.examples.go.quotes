@@ -1,8 +1,11 @@
-# Traefik dynamic configuration (ADR 0001): the whole route table, watched
-# live. API routes keep PathPrefix semantics unchanged so the backends see
-# /api/v1/auth/* and /api/v3/quotes/* exactly as the SPA emits them. Dev
-# surfaces (docs, pgweb, SPA) share the same host port via path prefixes;
-# StripPrefix lets each backend keep serving from / internally.
+# Traefik dynamic configuration (ADR 0001 / ADR 0010): the whole route table,
+# watched live. API routes keep PathPrefix semantics unchanged so the backends
+# see /api/v1/auth/* and /api/v3/quotes/* exactly as the SPA emits them. Dev
+# surfaces share the same host port via path prefixes; StripPrefix lets docs
+# and pgweb keep serving from / internally. The SPA mounts at /app with Vite
+# base=/app/ (no strip). Traefik's own dashboard owns / (redirect) + /dashboard
+# and its control API under /api — auth/quotes win on /api/v1 and /api/v3 via
+# higher router priority.
 http:
   middlewares:
     strip-docs:
@@ -13,6 +16,11 @@ http:
       stripPrefix:
         prefixes:
           - /pgweb
+    redirect-root-to-dashboard:
+      redirectRegex:
+        regex: "^https?://[^/]+/?$"
+        replacement: "/dashboard/"
+        permanent: false
 
   routers:
     auth:
@@ -39,9 +47,23 @@ http:
       service: pgweb
     spa:
       entryPoints: [web]
-      rule: "PathPrefix(`/`)"
-      priority: 10
+      rule: "PathPrefix(`/app`)"
+      priority: 50
       service: frontend
+    # Traefik dashboard UI + its JSON API. Priority below auth/quotes so
+    # /api/v1 and /api/v3 stay with the Go services; Traefik's own /api/*
+    # (overview, http/routers, …) still match this router.
+    dashboard:
+      entryPoints: [web]
+      rule: "PathPrefix(`/dashboard`) || PathPrefix(`/api`)"
+      priority: 40
+      service: api@internal
+    root:
+      entryPoints: [web]
+      rule: "Path(`/`)"
+      priority: 30
+      middlewares: [redirect-root-to-dashboard]
+      service: api@internal
 
   services:
     authapi:

@@ -99,13 +99,14 @@ EDGE="http://localhost:${EDGE_PORT}"
 
 echo
 echo "stack is up — single entry at ${EDGE}"
+echo "  dashboard ${EDGE}/  →  ${EDGE}/dashboard/"
 echo "  APIs     ${EDGE}/api/v1/auth  ${EDGE}/api/v3/quotes"
 if [[ " ${profiles[*]} " == *" dev "* ]]; then
   echo "  docs     ${EDGE}/docs/"
   echo "  pgweb    ${EDGE}/pgweb/"
 fi
 if [[ " ${profiles[*]} " == *" fullstack "* ]]; then
-  echo "  SPA      ${EDGE}/"
+  echo "  SPA      ${EDGE}/app/"
 fi
 
 echo
@@ -113,8 +114,10 @@ echo "verifying the edge round-trip (${EDGE})..."
 if [ -z "${QUOTES_DEV_USERNAME:-}" ] || [ -z "${QUOTES_DEV_PASSWORD:-}" ]; then
   echo "  skipped: set QUOTES_DEV_USERNAME/QUOTES_DEV_PASSWORD (see docs/dev-credentials.md) to run the authenticated probes"
   echo "  unauthenticated probes:"
+  curl -fsS -o /dev/null -w '  edge     GET  /            -> %{http_code} (redirect to /dashboard/)\n' "${EDGE}/" || true
+  curl -fsS -o /dev/null -w '  edge     GET  /dashboard/  -> %{http_code}\n' "${EDGE}/dashboard/" || true
   if [[ " ${profiles[*]} " == *" fullstack "* ]]; then
-    curl -fsS -o /dev/null -w '  edge     GET  /            -> %{http_code}\n' "${EDGE}/" || true
+    curl -fsS -o /dev/null -w '  edge     GET  /app/         -> %{http_code}\n' "${EDGE}/app/" || true
   elif [[ " ${profiles[*]} " == *" dev "* ]]; then
     curl -fsS -o /dev/null -w '  edge     GET  /docs/        -> %{http_code}\n' "${EDGE}/docs/" || true
   fi

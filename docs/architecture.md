@@ -26,14 +26,16 @@ flowchart LR
   pg[("postgres - quotesdb")]
   docs["docs - nginx /docs"]
   pgweb["pgweb /pgweb"]
-  vite["frontend - Vite /"]
+  vite["frontend - Vite /app"]
+  dash["Traefik dashboard /"]
 
   user --> edge
   edge -->|"/api/v1/auth"| auth
   edge -->|"/api/v3/quotes"| quotes
   edge -->|"/docs"| docs
   edge -->|"/pgweb"| pgweb
-  edge -->|"/"| vite
+  edge -->|"/app"| vite
+  edge -->|"/ → /dashboard/"| dash
   quotes -->|migrate + seed at boot| pg
   pgweb --- pg
 ```
@@ -48,7 +50,8 @@ APIs see the request path exactly as the SPA emits it. Dev surfaces join by path
 | `/api/v3/quotes` | quotesapi | the proto transport |
 | `/docs` | docs | Docsify + Scalar (dev profile) |
 | `/pgweb` | pgweb | catalog browser (dev profile) |
-| `/` | frontend | Vite SPA (fullstack profile) |
+| `/app` | frontend | Vite SPA (fullstack profile) |
+| `/` → `/dashboard/` | Traefik | API dashboard (every profile) |
 
 `authapi` owns no database; `quotesapi` never calls authapi on the request path — it
 validates tokens locally with the shared HS256 key (`JWT__SIGNINGKEY`, one value for both
@@ -57,7 +60,7 @@ Aspire's `WaitFor`, and the quotesapi boot additionally retries database connect
 because podman-compose's conditional ordering has bug history.
 
 Profiles: unprofiled = core (postgres + both APIs + edge); `dev` adds docs and pgweb
-behind `/docs` and `/pgweb`; `fullstack` adds the Vite dev server at `/`. When the SPA
+behind `/docs` and `/pgweb`; `fullstack` adds the Vite dev server at `/app`. When the SPA
 is up, browser API calls are same-origin through the edge. `scripts/start.sh` drives the
 selection.
 

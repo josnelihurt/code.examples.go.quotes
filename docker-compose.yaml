@@ -137,6 +137,7 @@ services:
       AUTH_API_HTTP: http://edge:80
       QUOTES_API_HTTP: http://edge:80
       VITE_DEV_ORIGIN: http://localhost:${QUOTES_EDGE_PORT:-8080}
+      VITE_BASE_PATH: /app/
     depends_on:
       - edge
     healthcheck:
