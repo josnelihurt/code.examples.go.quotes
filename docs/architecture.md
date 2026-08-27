@@ -42,7 +42,8 @@ flowchart LR
 
 Traefik is the only published host port. API routes keep `PathPrefix` semantics — the
 APIs see the request path exactly as the SPA emits it. Dev surfaces join by path prefix
-(ADR 0010); StripPrefix lets each backend keep serving from `/` internally:
+(ADR 0010): StripPrefix keeps docs and pgweb serving from `/` internally, while the SPA
+carries no middleware and is built under its own prefix instead (`VITE_BASE_PATH`):
 
 | Route | Service | Notes |
 |-------|---------|-------|
@@ -92,31 +93,46 @@ flowchart TD
     plat["config, correlation, httpserver, problemjson, telemetry"]
   end
 
-  root --> qapi
-  root --> aapi
+  root --> quotes
+  root --> auth
   root --> plat
   qapi --> qapp
+  qapi --> qdom
+  qapi --> plat
   qapp --> qdom
   qinfra --> qdom
-  qinfra --> qapp
   aapi --> aapp
+  aapi --> adom
+  aapi --> plat
   aapp --> adom
   ainfra --> adom
-  qapi --> plat
-  aapi --> plat
+  ainfra --> plat
 ```
+
+The composition roots are drawn against the whole context because that is what they
+touch: `cmd/` wires every layer of both contexts, which is the point of a composition
+root and the reason the layering rules below say nothing about it.
 
 The rules that matter:
 
 1. **Domain imports nothing** — not upper layers, not the other context, not the
-   platform. The standard library only.
+   platform kit. Both domains are in fact stdlib-only, but that last step is convention:
+   depguard names module-internal packages only, so third-party imports are invisible to
+   it and a domain package staying stdlib-only is held by review.
 2. **Application** depends on its own domain; never infrastructure, api, the other
    context or the platform kit (the platform is composed at the edges).
-3. **Infrastructure** implements the domain's ports; it may never reach up into api.
-4. **Bounded contexts meet in transport or composition, never below** — quotesapi's
-   `bearerAuthenticator` (in `cmd/quotesapi`) is the sanctioned meeting point: it adapts
-   the auth context's validator onto the v3 transport's `Authenticator` port.
-5. **Platform is a leaf** others compose; it may not depend on either context.
+3. **Infrastructure** implements the domain's ports; it may never reach up into api. It
+   may read the platform kit — auth's adapters take their settings from `config` — since
+   the kit is a leaf below everything.
+4. **The api layer never imports its own infrastructure**; it receives the adapters it
+   needs from the composition root.
+5. **Bounded contexts meet only in composition** — the guard denies the other context
+   from api, application and infrastructure alike, which leaves `cmd/` as the sanctioned
+   meeting point: quotesapi's `bearerAuthenticator` (in `cmd/quotesapi`) adapts the auth
+   context's validator onto the v3 transport's `Authenticator` port. No depguard rule
+   covers `cmd/`; what keeps the seam honest is that only the composition roots import
+   both contexts.
+6. **Platform is a leaf** others compose; it may not depend on either context.
 
 Per-layer ownership and the readmes: [internal/quotes](../internal/quotes/README.md),
 [internal/auth](../internal/auth/README.md), [internal/platform](../internal/platform/README.md).
@@ -128,8 +144,11 @@ The proto file is the single contract of record: every route comes from its
 in this transport. The gateway knobs that pin the wire semantics (the JSONPb marshaler
 that keeps `"details":[]` in every error body, the correlation header matchers, the
 stock error handler that produces the `{"code","message","details"}` envelope and the
-gRPC→HTTP status table) are enumerated in [ADR 0002](adr/0002-v3-transport-grpc-gateway.md)
-and set in one place, `NewGatewayMux`.
+gRPC→HTTP status table) are enumerated in [ADR 0002](adr/0002-v3-transport-grpc-gateway.md).
+Three of them are set in one place, `NewGatewayMux`: the marshaler and the two
+correlation header matchers. The fourth is deliberately *not* set — the runtime's
+`DefaultHTTPErrorHandler` is left untouched, so the envelope and the status table are the
+stock ones rather than a local reimplementation of them.
 
 Authentication and authorization run **before** the gateway (the `RequireScope`
 middleware): the 401 problem+json with `WWW-Authenticate` and the empty-body 403 are

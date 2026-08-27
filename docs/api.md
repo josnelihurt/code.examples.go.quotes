@@ -14,6 +14,12 @@ the frozen, generated OpenAPI document is the machine-readable truth
 - With the dev profile up: the Docsify site at `http://localhost:8080/docs/` carries the same
   [Scalar page](scalar/) (the explicit `index.html` matters under nginx)
 
+Those first two are mounted **on the service**, and the edge routes only the two `/api`
+prefixes — so under `./scripts/start.sh` the Docsify page is the way in. The specs reach
+the service routes directly instead: `tests/bdd/compose.bdd.yaml` publishes the API
+containers on host ports for exactly that, which is also how the `/health` and `/alive`
+probes are exercised.
+
 Scalar is the interactive client for humans; the specs (`./scripts/bdd.sh`) are the
 automated one. Neither is required by the other.
 

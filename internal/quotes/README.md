@@ -11,11 +11,11 @@ one folder per layer, dependencies pointing one way only, enforced by depguard (
 | Infrastructure | [infrastructure](infrastructure/) | the PostgreSQL repository over sqlc-generated queries, boot migration, the health round-trip | domain, application |
 | API (v3) | [api/v3](api/v3/) | the grpc-gateway transport: gateway mux, the QuoteService implementation, the auth middleware, the doc endpoints | domain, application, platform |
 
-Rules the guard pins (`.golangci.yml` depguard section, mirrored from the .NET
-NetArchTest table): domain imports nothing from its upper layers, other contexts or the
-platform; application may not reach into infrastructure or api; the api layer composes
-infrastructure only through the composition root; bounded contexts never meet below
-transport/composition.
+Rules the guard pins (`.golangci.yml` depguard section): domain imports nothing from its
+upper layers, other contexts or the platform; application may not reach into
+infrastructure or api; the api layer composes infrastructure only through the composition
+root; and the two bounded contexts meet nowhere under `internal/` — api, application and
+infrastructure each deny the other context, so `cmd/` is the only place they meet.
 
 Failures are `*domain.Error` values carrying stable, wire-visible codes
 (`quote.not_found`, `quote.duplicate_fingerprint`, `quote.invalid_page_request`, …) —
