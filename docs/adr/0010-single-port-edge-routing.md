@@ -24,9 +24,12 @@ or pgweb alongside the app.
    `docker-compose.yaml`.
 5. **Docsify `relativePath: true`** in `docs/index.html` so client-side navigation works
    under `/docs/`.
-6. **Vite HMR through the edge**: `VITE_DEV_ORIGIN` (compose) sets `server.origin` and
-   `hmr.clientPort` in `frontend/vite.config.ts` so hot reload works when the browser
-   talks to `:8080`.
+6. **Vite HMR through the edge**: compose sets `VITE_DEV_ORIGIN` to the browser-
+   facing edge URL. The shared SPA (`frontend/vite.config.ts`) treats that as
+   one optional knob among several (`VITE_SERVER_HOST`, `VITE_HMR_HOST`,
+   `VITE_HMR_CLIENT_PORT`, `VITE_HMR_PROTOCOL`) so Aspire and other hosts keep
+   stock `:5173` HMR when unset; explicit `VITE_HMR_*` always win over values
+   derived from the origin.
 
 ## Consequences
 
