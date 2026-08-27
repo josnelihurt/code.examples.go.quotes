@@ -9,8 +9,8 @@ OpenTelemetry traces and metrics, correlation — with no collector required to 
 `OTEL_EXPORTER_OTLP_ENDPOINT` is set**. Without it the OTel globals stay the SDK's no-op
 implementations — every instrumentation call is near-free, both APIs log one line saying
 so, and nothing else changes. The compose topology deliberately sets no endpoint: local
-observability is the container log stream, not a dashboard port (the .NET stack's Aspire
-dashboard has no analogue here by design — see the ADR's rejected alternatives).
+observability is the container log stream, not a dashboard port — a local telemetry UI was
+considered and rejected (see the ADR's alternatives).
 
 Point the variable at any OTLP gRPC receiver to light the pipeline up; the W3C trace
 context + baggage propagators are registered either way.
@@ -47,8 +47,8 @@ case, incremented with an `outcome` tag:
 | `quotes.list.count` | `success` \| `invalid` \| `error` |
 | `quotes.create.count` | `success` \| `invalid` \| `conflict` \| `error` |
 
-The quotes outcome values are the ErrorOr vocabulary ported verbatim from the .NET
-meter. The counters are incremented at the transport — the v3 service records every
+The quotes outcome values are the domain's own result vocabulary, so a counter reads the
+same way the use case does. The counters are incremented at the transport — the v3 service records every
 call's outcome (it is the single place every v3 request passes through), the auth
 transport records login/validate around its service calls.
 

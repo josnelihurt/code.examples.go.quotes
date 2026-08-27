@@ -28,7 +28,7 @@ these two variables; they never reach a container.
 
 ## JWT development signing key
 
-The compose topology (ADR 0001) shares one HS256 key between `authapi` (mints) and `quotesapi` (validates) through the `AUTH_SIGNING_KEY` environment variable, which defaults to a public local-development value — deliberately **not** the `config.DevelopmentSigningKey` constant, so a compose boot never mistakes itself for a `dotnet run`-style dev boot. Override it per-machine:
+The compose topology (ADR 0001) shares one HS256 key between `authapi` (mints) and `quotesapi` (validates) through the `AUTH_SIGNING_KEY` environment variable, which defaults to a public local-development value — deliberately **not** the `config.DevelopmentSigningKey` constant, so a compose boot is never mistaken for a bare local `go run` and the Production guard keeps its meaning. Override it per-machine:
 
 ```bash
 AUTH_SIGNING_KEY=any-value-of-at-least-32-bytes ./scripts/start.sh

@@ -127,31 +127,31 @@ skipped check runs still satisfy branch protection, and the workflow still compl
 | `specs (BDD against the compose stack)` | the 26 Gherkin journeys through the edge | backend changes, pins |
 | `e2e (full-stack Playwright against the Go APIs)` | the SPA against real APIs + catalog | backend changes, frontend pointer, pins |
 
-## The .NET→Go mapping
+## Technology choices
 
-One row per replaced element — each row consolidates the mapping its ADR records; the
-.NET side is [code.examples.net.quotes](https://github.com/josnelihurt/code.examples.net.quotes).
+One row per cross-cutting choice, with the reason it was made; the ADR beside it carries
+the alternatives that were rejected and the exact version pins.
 
-| .NET element | Go replacement | Where |
-|--------------|----------------|-------|
-| Aspire AppHost orchestration | docker-compose spec — dev stack and publish artifact in one file | [ADR 0001](adr/0001-orchestration-compose-traefik.md), `docker-compose.yaml` |
-| YARP gateway | Traefik v3 file provider — same route table, watched live | [ADR 0001](adr/0001-orchestration-compose-traefik.md), `traefik/dynamic.yml` |
-| EF Core (models + migrations + seed) | sqlc (SQL as the reviewed artifact) + pgx/v5 + golang-migrate, migration-at-boot | [ADR 0007](adr/0007-persistence-sqlc-pgx-migrate.md) |
-| Minimal-API JSON + gRPC-JSON transcoding | grpc-go server + grpc-gateway v2 runtime over the same proto | [ADR 0002](adr/0002-v3-transport-grpc-gateway.md) |
-| Serilog | `log/slog` JSON | [ADR 0005](adr/0005-observability.md) |
-| OpenTelemetry (.NET) | otel-go + otel-contrib (matched core/contrib pair, no-op without endpoint) | [ADR 0005](adr/0005-observability.md) |
-| JwtBearer + scope policies | golang-jwt/jwt/v5 validation + the `RequireScope` middleware | [ADR 0006](adr/0006-auth-and-errors.md) |
-| ProblemDetails factory | `internal/platform/problemjson` — the single RFC 9457 envelope | [ADR 0006](adr/0006-auth-and-errors.md) |
-| xUnit | the `testing` package (table tests, `t.Run`) | [ADR 0008](adr/0008-testing-strategy.md) |
-| Shouldly / FluentAssertions | `testify` assert/require | [ADR 0008](adr/0008-testing-strategy.md) |
-| NSubstitute | hand-written stubs (`stub_repository_test.go`, `stubs_test.go`) | [ADR 0008](adr/0008-testing-strategy.md) |
-| Reqnroll | godog (same Gherkin features, ported wording) | [ADR 0008](adr/0008-testing-strategy.md) |
-| Testcontainers (.NET) | testcontainers-go (fresh database per test) | [ADR 0008](adr/0008-testing-strategy.md) |
-| Coverlet / OpenCover | `go test -coverprofile` (collected, never gated) | [ADR 0008](adr/0008-testing-strategy.md) |
-| NetArchTest layering tests | golangci-lint depguard rules | [ADR 0009](adr/0009-lint-and-architecture-guard.md) |
-| Scalar.AspNetCore | a static Scalar page + the embedded frozen document at `/openapi/v3.json` | [ADR 0002](adr/0002-v3-transport-grpc-gateway.md), `internal/quotes/api/v3/docs.go` |
-| Docsify resource in the AppHost | the `docs` compose service (nginx, dev profile, `/docs` on the edge) | ADR 0001, ADR 0010, `docker-compose.yaml` |
-| `Microsoft.Extensions.Configuration` | Viper with typed structs, `__` env parity | [ADR 0004](adr/0004-configuration-viper.md) |
+| Choice | Why | Where |
+|--------|-----|-------|
+| the compose spec as both dev topology and publish artifact | one engine-neutral file, so CI (docker compose) and laptops (podman compose) run the same topology instead of two drifting descriptions | [ADR 0001](adr/0001-orchestration-compose-traefik.md), `docker-compose.yaml` |
+| Traefik v3 with the file provider | the route table is a reviewed file watched live — no container labels scattered across services, no engine socket handed to the edge | [ADR 0001](adr/0001-orchestration-compose-traefik.md), `traefik/dynamic.yml` |
+| sqlc + pgx/v5 + golang-migrate, migration at boot | SQL stays the artifact under review and the generated access code stays typed; every boot converges the schema itself | [ADR 0007](adr/0007-persistence-sqlc-pgx-migrate.md) |
+| grpc-go + the grpc-gateway v2 runtime over the proto | routes, paging defaults and the error envelope are derived from the contract, so there is no hand-written routing to drift from it | [ADR 0002](adr/0002-v3-transport-grpc-gateway.md) |
+| `log/slog` JSON | structured logging from the standard library: nothing to pin, nothing to vendor, one line per request | [ADR 0005](adr/0005-observability.md) |
+| otel-go with a matched core/contrib pair | traces and metrics behind a single endpoint check — with no OTLP endpoint set the pipeline is a no-op and costs nothing | [ADR 0005](adr/0005-observability.md) |
+| golang-jwt/jwt/v5 validated in-process, plus `RequireScope` | no per-request call to the auth service; scope is enforced before the transport and again at the grpc boundary | [ADR 0006](adr/0006-auth-and-errors.md) |
+| `internal/platform/problemjson` | one RFC 9457 envelope every problem body renders through, so the error shape cannot diverge per handler | [ADR 0006](adr/0006-auth-and-errors.md) |
+| the `testing` package, table tests under `t.Run` | the toolchain's own runner, so a failing case names itself and needs no framework to read | [ADR 0008](adr/0008-testing-strategy.md) |
+| testify assert/require | readable failure messages without inventing an assertion DSL | [ADR 0008](adr/0008-testing-strategy.md) |
+| hand-written stubs (`stub_repository_test.go`, `stubs_test.go`) | the ports are small; a mocking framework would cost more to read than the stub costs to write | [ADR 0008](adr/0008-testing-strategy.md) |
+| godog for the specs | the cross-service journeys stay in business language and run against the real edge | [ADR 0008](adr/0008-testing-strategy.md) |
+| testcontainers-go for repository tests | the repository is tested against a real PostgreSQL, fresh per test, rather than a fake | [ADR 0008](adr/0008-testing-strategy.md) |
+| `go test -coverprofile` | coverage is collected and trended, never gated — a threshold buys ceremony, not correctness | [ADR 0008](adr/0008-testing-strategy.md) |
+| golangci-lint depguard rules | the layering table is machine-checked on every PR, which is what makes it a rule rather than a diagram | [ADR 0009](adr/0009-lint-and-architecture-guard.md) |
+| a static Scalar page over the embedded frozen document | the reference UI ships with the service and serves the same bytes CI diffs for drift | [ADR 0002](adr/0002-v3-transport-grpc-gateway.md), `internal/quotes/api/v3/docs.go` |
+| the `docs` compose service (nginx, dev profile, `/docs` on the edge) | the documentation site runs beside the stack it documents, on the same front door | ADR 0001, ADR 0010, `docker-compose.yaml` |
+| Viper with typed structs and `__` env-name parity | one loader, validated fail-fast at boot; the `__` names carry unchanged to the sibling implementation of this contract | [ADR 0004](adr/0004-configuration-viper.md) |
 
 ## How this repository was built
 

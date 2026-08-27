@@ -27,8 +27,8 @@ automated one. Neither is required by the other.
 
 Every quotes route requires a bearer JWT minted by the auth API. Scopes are real: reads
 need `quotes:read`, create needs `quotes:write`; a valid token without the route's scope
-is an empty-body 403. The challenges, answered before the gateway so their shapes are
-byte-identical to the .NET pipeline:
+is an empty-body 403. The challenges, answered before the gateway so the gateway's error
+handler never sees them:
 
 - no token → `401` problem+json (`auth.token_missing`) with `WWW-Authenticate: Bearer`
 - rejected token → `401` problem+json (`auth.token_invalid`) with
@@ -68,8 +68,8 @@ real unknown-id answer, exactly as the wire tests pin it:
 
 The gRPC→HTTP status mapping is the stock table (5→404, 6→409, 3→400, 16→401, …), and
 the machine-readable domain code deliberately does not travel — the canonical carrier
-would be an ErrorInfo detail, which the .NET transcoding writer cannot render either
-(ADR 0002).
+would be an ErrorInfo detail, which neither transcoding implementation of this contract
+renders (ADR 0002).
 
 **The auth API and the pre-gateway 401/403 use RFC 9457 problem+json**
 (`application/problem+json`): `type`/`title`/`status` plus the `errorCode`,

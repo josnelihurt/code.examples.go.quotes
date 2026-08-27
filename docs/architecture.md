@@ -11,9 +11,9 @@ its source.
 
 ## Topology
 
-The compose file is both the dev stack and the publish artifact (ADR 0001) — the .NET
-original's Aspire AppHost expressed in the engine-neutral compose spec, so the same file
-runs under docker compose (CI) and podman compose (laptops). The edge is Traefik v3 with
+The compose file is both the dev stack and the publish artifact (ADR 0001): one
+engine-neutral description of the topology, so the same file runs under docker compose
+(CI) and podman compose (laptops). The edge is Traefik v3 with
 the file provider: no docker labels, no engine socket, one watched route table
 (`traefik/dynamic.yml`).
 
@@ -56,9 +56,9 @@ carries no middleware and is built under its own prefix instead (`VITE_BASE_PATH
 
 `authapi` owns no database; `quotesapi` never calls authapi on the request path — it
 validates tokens locally with the shared HS256 key (`JWT__SIGNINGKEY`, one value for both
-sides; see [dev credentials](dev-credentials.md)). Healthchecks + `depends_on` replace
-Aspire's `WaitFor`, and the quotesapi boot additionally retries database connects itself
-because podman-compose's conditional ordering has bug history.
+sides; see [dev credentials](dev-credentials.md)). Healthchecks + `depends_on` order the
+boot, and the quotesapi boot additionally retries database connects itself because
+podman-compose's conditional ordering has bug history.
 
 Profiles: unprofiled = core (postgres + both APIs + edge); `dev` adds docs and pgweb
 behind `/docs` and `/pgweb`; `fullstack` adds the Vite dev server at `/app`. When the SPA
@@ -68,9 +68,9 @@ selection.
 ## Layering
 
 Two bounded contexts (quotes, auth) plus a platform kit, each context with the same four
-layers — the .NET Clean Architecture shape. Dependencies point one way only, and the
-rules are code, not aspiration: the depguard section of `.golangci.yml` (ADR 0009) fails
-lint on any violation, mirroring the .NET repo's NetArchTest table.
+Clean Architecture layers. Dependencies point one way only, and the rules are mostly code
+rather than aspiration: the depguard section of `.golangci.yml` (ADR 0009) fails lint on
+any violation.
 
 ```mermaid
 flowchart TD
@@ -152,16 +152,16 @@ stock ones rather than a local reimplementation of them.
 
 Authentication and authorization run **before** the gateway (the `RequireScope`
 middleware): the 401 problem+json with `WWW-Authenticate` and the empty-body 403 are
-answered there, byte-identical to the .NET pipeline, and never surface through the
+answered there, byte-for-byte as the wire tests pin them, and never surface through the
 gateway's error handler. A grpc-side interceptor enforces the same method→scope table
 for any caller that dials the loopback listener directly — defense in depth, not the
 wire path.
 
 ## Configuration and errors
 
-Configuration is Viper with typed structs and `__` env-name parity with the .NET kit
-(`JWT__SIGNINGKEY`, `CONNECTIONSTRINGS__QUOTESDB`, `SERVER__ADDRESS`), validated
-fail-fast at boot (ADR 0004). Expected failures are `*domain.Error` values with stable
+Configuration is Viper with typed structs and `__` env-name parity across the sibling
+implementations of this contract (`JWT__SIGNINGKEY`, `CONNECTIONSTRINGS__QUOTESDB`,
+`SERVER__ADDRESS`), validated fail-fast at boot (ADR 0004). Expected failures are `*domain.Error` values with stable
 codes; the two transports map them differently on purpose — problem+json on auth (and on
 the quotes transport's pre-gateway 401/403), the gRPC status envelope on the v3 surface
 (ADR 0006). Both envelopes are single-sourced: `problemjson` for problems, the gateway's

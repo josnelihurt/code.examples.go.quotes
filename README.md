@@ -1,8 +1,12 @@
 # Go Quotes
 
-**Go port of the Aspire Quotes backend**, serving the **v3 quotes transport**: the
-[`quotes.v3` proto contract](contracts/quotes/v3/quotes_v3.proto) — identical messages and
-`google.api.http` rules to the .NET original — driven through a grpc-go server behind the
+A production-shaped Go backend, written as a statement of how a service of this kind is
+put together: **two bounded contexts under a layering table the linter enforces**, a
+**contract that owns its own transport**, and every cross-cutting decision argued out in
+an [ADR](docs/architecture-decisions.md) before it was implemented.
+
+What it serves is the **v3 quotes transport**: the [`quotes.v3` proto
+contract](contracts/quotes/v3/quotes_v3.proto), driven through a grpc-go server behind the
 grpc-gateway runtime, so the HTTP routes, the paging defaults and the gRPC status error
 envelope all come from the contract, not from hand-written routing.
 
@@ -13,15 +17,16 @@ Stack: **Go 1.27**, **grpc-gateway v2**, **PostgreSQL** (sqlc + pgx + golang-mig
 
 | Repository | Role |
 |------------|------|
-| [code.examples.net.quotes](https://github.com/josnelihurt/code.examples.net.quotes) | the .NET original this port replicates (v3 transport, wire semantics, seed catalog) |
+| [code.examples.net.quotes](https://github.com/josnelihurt/code.examples.net.quotes) | a .NET service over the same v3 contract — identical messages and `google.api.http` rules, so one SPA drives either backend |
 | [code.examples.frontend.quotes](https://github.com/josnelihurt/code.examples.frontend.quotes) | the React SPA, consumed here as a **git submodule pinned by commit** (`frontend/`); clone with `--recurse-submodules` |
 | [code.examples.ci](https://github.com/josnelihurt/code.examples.ci) | the shared toolkit: `conventions`, `secrets-hygiene` and `merge-me` actions this repo's CI composes |
 
-The deliverable is the same as the .NET seed's, restated for Go: a cloneable service shape
-— clean architecture per bounded context (domain / application / infrastructure / api), a
-shared platform kit, contracts as product — with every cross-cutting decision recorded as
-an [ADR](docs/architecture-decisions.md) and mapped element-by-element from the .NET
-original (the consolidated table lives in [docs/system-design.md](docs/system-design.md)).
+The deliverable is a service shape worth cloning: clean architecture per bounded context
+(domain / application / infrastructure / api), a shared platform kit, contracts as
+product. Nothing here is left as an exercise — the topology, the layering guard, the two
+error envelopes, the seed catalog and the test pyramid are all present and all verified,
+and the reasoning behind each of them is written down next to the code it governs
+([docs/system-design.md](docs/system-design.md) is the end-to-end view).
 
 ## What runs
 
@@ -104,7 +109,7 @@ is collected and trended in CI, never gated. Details: [docs/testing.md](docs/tes
 - [Local dev](docs/local-dev.md) — prerequisites, profiles, common tasks
 - [Observability](docs/observability.md) — slog, OTel, the `quotes.*` counters
 - [API](docs/api.md) — the v3 surface, auth, error envelopes, `/openapi/v3.json` + `/scalar`
-- [System design](docs/system-design.md) — end-to-end view incl. the .NET→Go mapping table
+- [System design](docs/system-design.md) — end-to-end view: topology, request lifecycle, CI, technology choices
 - [Architecture decisions](docs/architecture-decisions.md) — the ten ADRs the stack implements
 - [Development credentials](docs/dev-credentials.md) — the single source of truth for non-Production secrets
 
