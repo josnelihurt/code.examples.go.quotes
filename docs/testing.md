@@ -1,7 +1,6 @@
 # Testing
 
-Four tiers, each owning exactly one question — the .NET repo's pyramid, restated for Go
-(ADR 0008). The bottom two are exhaustive and fast; the top two are few scenarios in
+Four tiers, each owning exactly one question (ADR 0008). The bottom two are exhaustive and fast; the top two are few scenarios in
 business language, run against real processes.
 
 | Tier | Lives in | Proves | Style |

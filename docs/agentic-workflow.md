@@ -13,8 +13,8 @@ agreements, [contributing.md](contributing.md) the conventions enforcement, and
   opens the pull requests, registers the stack (`gh stack link`) and hands off merges. Its context
   holds plans and verdicts, not file contents.
 - **Implementer** — a fresh-context sub-agent spawned per layer. Its prompt is self-contained:
-  the layer specification, the repository conventions, the parity requirements against the .NET
-  reference, and the gates to run before claiming done. It lands exactly one commit —
+  the layer specification, the repository conventions, the wire semantics the layer must not
+  move, and the gates to run before claiming done. It lands exactly one commit —
   `type: lowercase imperative subject` — and reports what changed and which gates ran green.
 - **Revisor** — a fresh-context sub-agent that validates the finished layer against the checklist
   below and returns a PASS/FAIL verdict with findings graded **blocking**, **minor** or **note**.
@@ -46,11 +46,12 @@ commit; its subject — and the PR title — follow `type(scope)!: lowercase imp
 stack tip; the diff against the parent branch touches only files this layer owns; a layer that
 adds a CI job or a load-bearing file extends the `changes` path filters in the same PR.
 
-**C. Parity.** Wire semantics match the .NET v3 reference: the error envelope
+**C. Wire semantics.** The pinned v3 contract still holds: the error envelope
 (`{"code":N,"message":…}` with `"details":[]` present), the gRPC→HTTP status mapping, paging
 defaults (1/20) and bounds, the `X-Correlation-Id` echo, the 401 problem+json body with
-`WWW-Authenticate`, and create answering 200 with no `Location` header — and wherever the layer
-introduces or changes a mapping, the .NET mapping table in the relevant ADR is updated.
+`WWW-Authenticate`, and create answering 200 with no `Location` header. The wire tests and the
+specs are what prove it; where a layer changes one of these deliberately, the ADR that records
+the decision changes in the same layer.
 
 **D. Hygiene.** No secrets; no stray debug output or dead code; documentation updated alongside
 the change; the PR body carries What / Stack / Review pointers / Evidence-at-this-level.
