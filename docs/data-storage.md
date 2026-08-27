@@ -66,7 +66,7 @@ mid-read can ignore cooperative cancellation, and readiness must answer regardle
 
 | Value | Where it is defined |
 |-------|---------------------|
-| Compose catalog credentials | `docker-compose.yaml` (development values: user/password/database `quotes`) |
+| Compose catalog credentials | `docker-compose.yaml` (development values: user and password `quotes`, database `quotesdb`) |
 | Throwaway e2e catalog values | `scripts/e2e.env` — the one copy shared by the script and the CI job |
 | Image tags (postgres et al.) | `scripts/images.env`, cross-checked against the compose file by the `image-pins` CI job |
 
