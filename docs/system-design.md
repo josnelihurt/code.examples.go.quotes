@@ -13,27 +13,29 @@ detail in a `README.md` next to each source tree.
 ```mermaid
 flowchart LR
   user["Browser"]
-  edge["edge - Traefik v3"]
+  edge["edge - Traefik v3 :8080"]
   auth["authapi"]
   quotes["quotesapi"]
   pg[("postgres - quotesdb")]
-  site["docs - nginx :3001"]
-  spa["frontend - Vite SPA (submodule)"]
+  site["docs - nginx /docs"]
+  spa["frontend - Vite SPA /app"]
+  dash["Traefik dashboard /"]
 
-  user --> spa
-  user --> site
   user --> edge
-  spa -->|"/api/v1/auth, /api/v3/quotes"| edge
   edge --> auth
   edge --> quotes
+  edge --> site
+  edge --> spa
+  edge --> dash
   quotes --> pg
 ```
 
-Two bounded contexts, one edge, one database, one SPA. `authapi` mints tokens;
-`quotesapi` validates them locally (golang-jwt) and never calls back on the request
-path. The SPA is consumed as a pinned git submodule — its own repository carries its
-tests and its lint gates; from this checkout it runs in the fullstack profile and the
-e2e suite.
+Two bounded contexts, one edge, one database, one SPA. Traefik is the only published
+host port; `/` opens the Traefik dashboard, and dev surfaces plus the SPA join by path
+prefix (ADR 0010). `authapi` mints tokens; `quotesapi` validates them locally
+(golang-jwt) and never calls back on the request path. The SPA is consumed as a pinned
+git submodule — its own repository carries its tests and its lint gates; from this
+checkout it runs in the fullstack profile and the e2e suite.
 
 ## Runtime topology
 
@@ -43,10 +45,11 @@ flowchart LR
   pg["postgres - pinned image, volume-less"]
   auth["authapi - Go image, :8080 in-container"]
   quotes["quotesapi - Go image, :8080 in-container"]
-  edge["edge - Traefik, host :8080"]
-  docs["docs - nginx :3001 (dev profile)"]
-  pgweb["pgweb :8081 (dev profile)"]
-  vite["frontend - Vite :5173 (fullstack profile)"]
+  edge["edge - Traefik, host :8080 only"]
+  docs["docs - nginx /docs (dev profile)"]
+  pgweb["pgweb /pgweb (dev profile)"]
+  vite["frontend - Vite /app (fullstack profile)"]
+  dash["dashboard / → /dashboard/"]
 
   key -->|"JWT__SIGNINGKEY"| auth
   key -->|"JWT__SIGNINGKEY"| quotes
@@ -54,7 +57,10 @@ flowchart LR
   pgweb --- pg
   edge --> auth
   edge --> quotes
-  vite -->|"proxy targets AUTH_API_HTTP / QUOTES_API_HTTP"| edge
+  edge --> docs
+  edge --> pgweb
+  edge --> vite
+  edge --> dash
 ```
 
 Three things carry the wiring:
@@ -144,7 +150,7 @@ One row per replaced element — each row consolidates the mapping its ADR recor
 | Coverlet / OpenCover | `go test -coverprofile` (collected, never gated) | [ADR 0008](adr/0008-testing-strategy.md) |
 | NetArchTest layering tests | golangci-lint depguard rules | [ADR 0009](adr/0009-lint-and-architecture-guard.md) |
 | Scalar.AspNetCore | a static Scalar page + the embedded frozen document at `/openapi/v3.json` | [ADR 0002](adr/0002-v3-transport-grpc-gateway.md), `internal/quotes/api/v3/docs.go` |
-| Docsify resource in the AppHost | the `docs` compose service (nginx, dev profile, :3001) | ADR 0001, `docker-compose.yaml` |
+| Docsify resource in the AppHost | the `docs` compose service (nginx, dev profile, `/docs` on the edge) | ADR 0001, ADR 0010, `docker-compose.yaml` |
 | `Microsoft.Extensions.Configuration` | Viper with typed structs, `__` env parity | [ADR 0004](adr/0004-configuration-viper.md) |
 
 ## How this repository was built

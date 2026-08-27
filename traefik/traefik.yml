@@ -1,9 +1,10 @@
 # Traefik static configuration (ADR 0001). Mounted at /etc/traefik/traefik.yml
 # where Traefik's default static-config lookup finds it. The route table lives
 # next to this file in dynamic.yml — the file provider watches it live, the
-# docker provider stays off (no engine socket, identical on docker and podman),
-# and the API dashboard stays disabled: local observability is the container
-# log stream, not a dashboard port.
+# docker provider stays off (no engine socket, identical on docker and podman).
+# The API dashboard is enabled and served on the web entrypoint via the file
+# provider (api@internal); insecure mode stays off so nothing binds a second
+# host port.
 entryPoints:
   web:
     address: ":80"
@@ -19,7 +20,7 @@ providers:
 ping: {}
 
 api:
-  dashboard: false
+  dashboard: true
   insecure: false
 
 log:

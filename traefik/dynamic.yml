@@ -1,18 +1,69 @@
-# Traefik dynamic configuration (ADR 0001): the whole route table, watched
-# live. Parity with the .NET YARP block — PathPrefix semantics keep the request
-# path unchanged, so the APIs see /api/v1/auth/* and /api/v3/quotes/* exactly
-# as the SPA emits them. No middleware, no TLS: the edge terminates plain HTTP
-# on the compose network. These are the only two routes.
+# Traefik dynamic configuration (ADR 0001 / ADR 0010): the whole route table,
+# watched live. API routes keep PathPrefix semantics unchanged so the backends
+# see /api/v1/auth/* and /api/v3/quotes/* exactly as the SPA emits them. Dev
+# surfaces share the same host port via path prefixes; StripPrefix lets docs
+# and pgweb keep serving from / internally. The SPA mounts at /app with Vite
+# base=/app/ (no strip). Traefik's own dashboard owns / (redirect) + /dashboard
+# and its control API under /api — auth/quotes win on /api/v1 and /api/v3 via
+# higher router priority.
 http:
+  middlewares:
+    strip-docs:
+      stripPrefix:
+        prefixes:
+          - /docs
+    strip-pgweb:
+      stripPrefix:
+        prefixes:
+          - /pgweb
+    redirect-root-to-dashboard:
+      redirectRegex:
+        regex: "^https?://[^/]+/?$"
+        replacement: "/dashboard/"
+        permanent: false
+
   routers:
     auth:
       entryPoints: [web]
       rule: "PathPrefix(`/api/v1/auth`)"
+      priority: 100
       service: authapi
     quotes:
       entryPoints: [web]
       rule: "PathPrefix(`/api/v3/quotes`)"
+      priority: 100
       service: quotesapi
+    docs:
+      entryPoints: [web]
+      rule: "PathPrefix(`/docs`)"
+      priority: 50
+      middlewares: [strip-docs]
+      service: docs
+    pgweb:
+      entryPoints: [web]
+      rule: "PathPrefix(`/pgweb`)"
+      priority: 50
+      middlewares: [strip-pgweb]
+      service: pgweb
+    spa:
+      entryPoints: [web]
+      rule: "PathPrefix(`/app`)"
+      priority: 50
+      service: frontend
+    # Traefik dashboard UI + its JSON API. Priority below auth/quotes so
+    # /api/v1 and /api/v3 stay with the Go services; Traefik's own /api/*
+    # (overview, http/routers, …) still match this router.
+    dashboard:
+      entryPoints: [web]
+      rule: "PathPrefix(`/dashboard`) || PathPrefix(`/api`)"
+      priority: 40
+      service: api@internal
+    root:
+      entryPoints: [web]
+      rule: "Path(`/`)"
+      priority: 30
+      middlewares: [redirect-root-to-dashboard]
+      service: api@internal
 
   services:
     authapi:
@@ -23,3 +74,15 @@ http:
       loadBalancer:
         servers:
           - url: "http://quotesapi:8080"
+    docs:
+      loadBalancer:
+        servers:
+          - url: "http://docs:80"
+    pgweb:
+      loadBalancer:
+        servers:
+          - url: "http://pgweb:8081"
+    frontend:
+      loadBalancer:
+        servers:
+          - url: "http://frontend:5173"
