@@ -79,10 +79,10 @@ of `.github/workflows/ci.yml` — a PR that adds a job or a load-bearing file ex
 filters in the same PR. The `ci:full-build` PR label forces the full matrix; pushes to
 `main` always run it, and so does any change under `.github/workflows/**`.
 
-At this scaffold layer the matrix is `conventions` and `secrets-hygiene` only (both
-ungated); the gated jobs — build & test, lint, CodeQL, BDD specs, full-stack e2e,
-contract drift and image pins — land with the Go-module and stack layers that make them
-load-bearing, each adding its decide output in the same PR.
+`conventions` and `secrets-hygiene` run ungated on every PR. The gated jobs are build &
+test, lint, CodeQL, BDD specs, full-stack e2e, contract drift, image pins and `docs`
+(links + code references) — a PR that adds a job adds its decide output in the same PR.
+A docs-only change runs the `docs` gate and nothing else.
 
 Skips happen at the job level on purpose: skipped check runs still satisfy the
 branch-protection checks, and the workflow still completes success so merge-me's

@@ -23,8 +23,9 @@ analogue of the .NET `NetArchTest` LayeringTests (ADR 0009). The shape:
 A change that needs a new cross-layer import is either wrong or an architecture decision that
 belongs in an ADR — never a `//nolint`.
 
-**The two bounded contexts meet only at the composition root** (`cmd/quotesapi/main.go`), through
-ports defined by the consumer: `tokenValidator` and `bearerAuthenticator` there are the pattern.
+**The two bounded contexts meet only at the composition root** (`cmd/quotesapi/`), through
+ports defined by the consumer: `tokenValidator` (`wire.go`) and `bearerAuthenticator`
+(`auth_adapter.go`) are the pattern.
 
 ## R2. The domain owns the error vocabulary, and the codes are public API
 
@@ -100,18 +101,22 @@ by hand, never rebase or force-push a mid-stack branch, never label several laye
 
 The `changes` job of `.github/workflows/ci.yml` gates every job on the paths a PR touches. **A PR
 that adds a job or moves a load-bearing file extends the filters in the same PR** — currently
-`migrations/**` (~line 71), `contracts/**` (~84), `tests/**` (~110, ~259). The `ci:full-build`
+`migrations/**` (~line 71), `contracts/**` (~84), `tests/README.md` (~123), `tests/**` (~259). The `ci:full-build`
 label forces the full matrix. Skips are at job level on purpose: skipped check runs still satisfy
 branch protection and still let merge-me's ci-completion trigger fire, which a workflow-level
 `paths:` filter would break.
 
 ## R9. Documentation claims are mechanically verified
 
-`./scripts/verify-docs.sh` checks that every markdown link and heading anchor resolves and that
-**every backticked repo path, route and identifier in the documentation set actually exists**.
-A rename or move that leaves a stale path in `docs/` fails this gate. Scope is `README.md`,
-`docs/**/*.md`, `cmd/**/README.md`, `internal/**/README.md`, `tests/README.md`, `contracts/*.md`
-— note it does **not** scan `CLAUDE.md` or `.claude/**`, so links there are on the author.
+`./scripts/verify-docs.sh` runs two checks with different scopes. **Links and heading anchors**
+are checked across `README.md`, `docs/**/*.md` (ADRs included), `cmd/**/README.md`,
+`internal/**/README.md`, `tests/README.md` and `contracts/*.md`. **Backticked repo paths, routes
+and identifiers** are checked on a narrower set: the component readmes plus `docs/architecture.md`,
+`data-storage.md`, `testing.md`, `local-dev.md`, `observability.md`, `api.md` and
+`system-design.md` — the root `README.md`, `docs/README.md`, the ADRs and the narrative pages are
+outside it, so a stale citation there survives the gate. Neither check scans `CLAUDE.md` or
+`.claude/**`, so links here are on the author. A rename that leaves a stale path in a
+reference-checked page fails the gate.
 `--skip-mermaid` skips the diagram render (which needs network and pnpm).
 
 ## R10. House style

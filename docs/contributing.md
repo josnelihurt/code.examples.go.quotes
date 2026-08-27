@@ -86,10 +86,10 @@ to `main` it checks the new commits' subjects, validating with the ` (#N)`
 suffix stripped.
 
 The same workflow runs `secrets-hygiene` (also ungated) and the `changes`
-path-detection job whose filters describe the end-state Go layout. The gated
-jobs those filters will drive — build & test, lint, CodeQL, BDD specs,
-full-stack e2e, contract drift and image pins — land with the layers that make
-them load-bearing.
+path-detection job whose filters drive the gated jobs: build & test, lint,
+CodeQL, BDD specs, full-stack e2e, contract drift, image pins, and `docs`
+(links + code references) — the gate that runs `./scripts/verify-docs.sh` on
+every PR touching a documentation page.
 
 ### Branch ruleset on `main`
 

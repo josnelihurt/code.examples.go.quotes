@@ -155,7 +155,7 @@ One row per replaced element — each row consolidates the mapping its ADR recor
 
 ## How this repository was built
 
-The stack of ten pull requests this repository landed as — three cooperating agent
-roles, one decision per layer, every level independently green — is documented in
+The ten-pull-request stack this repository was originally built as — three cooperating
+agent roles, one decision per layer, every level independently green — is documented in
 [agentic workflow](agentic-workflow.md); the working agreements each layer followed are
 [AGENTS.md](../AGENTS.md) and [contributing](contributing.md).

@@ -13,6 +13,19 @@ Implemented by `internal/auth/infrastructure/credentialstore.go` (`NewHardcodedC
 | `jrb` | `supersecret` | `quotes:read`, `quotes:write` |
 | `reader` | `readsecret` | `quotes:read` |
 
+## Development login for `scripts/start.sh`
+
+`scripts/start.sh` proves the stack after boot by logging in through the edge and reading one
+authenticated page of quotes. It takes the user from `QUOTES_DEV_USERNAME` and
+`QUOTES_DEV_PASSWORD` — any pair from the table above:
+
+```bash
+QUOTES_DEV_USERNAME=jrb QUOTES_DEV_PASSWORD=supersecret ./scripts/start.sh
+```
+
+Unset, the script prints unauthenticated probes instead of the round-trip. Nothing else reads
+these two variables; they never reach a container.
+
 ## JWT development signing key
 
 The compose topology (ADR 0001) shares one HS256 key between `authapi` (mints) and `quotesapi` (validates) through the `AUTH_SIGNING_KEY` environment variable, which defaults to a public local-development value — deliberately **not** the `config.DevelopmentSigningKey` constant, so a compose boot never mistakes itself for a `dotnet run`-style dev boot. Override it per-machine:
