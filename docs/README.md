@@ -14,7 +14,7 @@ site is the documentation set:
 - [Observability](observability.md) — slog, OTel, the `quotes.*` counters, correlation
 - [API](api.md) — the v3 surface, auth, error envelopes, the reference pages
 - [System design](system-design.md) — end-to-end view incl. CI and the .NET→Go mapping
-- [Architecture decisions](architecture-decisions.md) — the nine ADRs the stack implements
+- [Architecture decisions](architecture-decisions.md) — the ten ADRs the stack implements
 - [Contributing](contributing.md) — branch naming, commit subjects, enforcement
 - [Agentic workflow](agentic-workflow.md) — how coding agents work in this repository
 - [Development credentials](dev-credentials.md) — the single source of truth for non-Production secrets
@@ -28,6 +28,8 @@ until the revisor passed; the [agentic workflow](agentic-workflow.md) page docum
 loop, the revisor checklist and the merge handoff, and [architecture
 decisions](architecture-decisions.md) records the evaluations the layers implement.
 
-Every claim in this set is mechanically verified: `./scripts/verify-docs.sh` checks that
-each link resolves and each cited path, route and identifier exists in the code, and the
-`docs` CI job runs the same gate on every docs-touching PR.
+The set is mechanically verified: `./scripts/verify-docs.sh` checks that every link
+resolves, and that the pages carrying code citations — the component readmes and the
+seven reference pages here — cite only paths, routes and identifiers that exist in the
+code. The ADRs and the narrative pages are link-checked only. The `docs` CI job runs the
+same gate on every docs-touching PR.

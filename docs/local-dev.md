@@ -73,6 +73,12 @@ enforces them regardless — [contributing](contributing.md) has the full refere
   for a bounded budget; check the quotesapi container's log stream for the migration
   output, and remember `./scripts/start.sh down` removes volumes too, so the next boot
   is a fresh seeded catalog.
+- **A dev-profile path answers 502** — that backend is not running. `--core` starts
+  neither docs nor pgweb, and the edge keeps routing their prefixes either way
+  (ADR 0010); start the `dev` profile or ignore the path.
 - **Two checkouts on one machine** — the specs run under their own compose project
   (`quotes-bdd`) and `update-contracts.sh` tags its export image per worktree, so
-  concurrent runs do not race; `start.sh`'s ports are fixed, so serialize dev stacks.
+  concurrent runs do not race. Dev stacks still have to be serialized, and moving
+  `QUOTES_EDGE_PORT` is not enough: `docker-compose.yaml` pins the project name to
+  `quotes`, which `start.sh` does not parameterize, so a second stack adopts the first
+  one's containers.

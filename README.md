@@ -90,7 +90,8 @@ make test-db                     # the database integration suite against a loca
 
 `make test` covers the pyramid's fast tiers: domain invariants, application use cases,
 transport wire tests, platform kit units — plus the testcontainers-backed repository
-suite (`make test-db` runs it when no container runtime is on `DOCKER_HOST`). The BDD
+suite — which `go test ./...` skips unless a container runtime is on `DOCKER_HOST`,
+which is exactly what `make test-db` supplies. The BDD
 suite boots the actual compose topology (postgres + both APIs + the Traefik edge) and
 proves the cross-service journeys; the e2e suite drives the real UI in Chromium. Coverage
 is collected and trended in CI, never gated. Details: [docs/testing.md](docs/testing.md).
@@ -104,12 +105,15 @@ is collected and trended in CI, never gated. Details: [docs/testing.md](docs/tes
 - [Observability](docs/observability.md) — slog, OTel, the `quotes.*` counters
 - [API](docs/api.md) — the v3 surface, auth, error envelopes, `/openapi/v3.json` + `/scalar`
 - [System design](docs/system-design.md) — end-to-end view incl. the .NET→Go mapping table
-- [Architecture decisions](docs/architecture-decisions.md) — the nine ADRs the stack implements
+- [Architecture decisions](docs/architecture-decisions.md) — the ten ADRs the stack implements
 - [Development credentials](docs/dev-credentials.md) — the single source of truth for non-Production secrets
 
-The whole documentation set is mechanically verified: `./scripts/verify-docs.sh` checks
-that every markdown link resolves and every backticked path, route and identifier the
-pages cite exists in the code. CI runs it as the `docs` job on every docs-touching PR.
+The documentation set is mechanically verified: `./scripts/verify-docs.sh` checks that
+every markdown link in it resolves, and that every backticked path, route and identifier
+cited by the pages that carry code citations — the component readmes and the seven
+reference pages under `docs/` — exists in the code. The ADRs, this README and the
+narrative pages are link-checked but not reference-checked. CI runs the gate as the
+`docs` job on every docs-touching PR.
 
 ## How this repo is built
 

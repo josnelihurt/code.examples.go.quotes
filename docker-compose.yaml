@@ -5,7 +5,7 @@
 #
 # Profiles: unprofiled = core (postgres + both APIs + edge); `dev` adds the
 # docs server and pgweb behind the edge at /docs and /pgweb; `fullstack`
-# adds the Vite frontend at /. scripts/start.sh drives the selection. Image
+# adds the Vite frontend at /app. scripts/start.sh drives the selection. Image
 # tags are pinned
 # literally and cross-checked against scripts/images.env by CI (the image-pins
 # job); the Go images build from Dockerfile.authapi/Dockerfile.quotesapi at

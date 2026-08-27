@@ -1,8 +1,9 @@
 # Architecture decisions
 
 These decisions were evaluated in parallel research passes before the stack was cut; they pin
-versions and map every .NET element to its Go replacement. Each ADR records the context, the
-decision, the alternatives rejected, the .NET mapping and the exact version pins. The
+versions and map every .NET element to its Go replacement. Each of ADRs 0001-0009 records the
+context, the decision, the alternatives rejected, the .NET mapping and the exact version pins;
+ADR 0010 amends ADR 0001 and carries neither a mapping nor pins of its own. The
 [agentic workflow](agentic-workflow.md) describes how those research passes and the stack itself
 were produced; [AGENTS.md](../AGENTS.md) carries the working agreements each layer follows.
 
