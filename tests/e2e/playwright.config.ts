@@ -12,15 +12,15 @@ import { defineBddConfig } from 'playwright-bdd';
 // their proxy targets are wired below exactly as the .NET job wired them.
 //
 // Transport selection (the wiring finding): the SPA picks its API version in
-// src/api/client.ts — sessionStorage key "apiVersion", DEFAULT_API_VERSION
-// 'v1', set through the UI switcher; there is NO build-time or env hook
-// (no VITE_API_VERSION). This backend serves only the v3 transport (ADR
-// 0002), so the scenarios that pin v0/v1/v2 explicitly, or assert the v1
-// default, cannot run against it: they are excluded below by name and file.
-// What remains exercises the v3 journeys end to end — sign-in (authapi),
-// the switching-transports v3 journey (random quote, catalog, publish
-// through quotesapi + PostgreSQL), and sign-out — everything the frontend
-// asks of this backend happens on v3.
+// src/api/client.ts — sessionStorage key "apiVersion", set through the UI
+// switcher, defaulting to VITE_DEFAULT_API_VERSION (v1 when unset). The
+// webServer below bakes v3 into that default because this backend serves
+// only the v3 transport (ADR 0002); the scenarios that pin v0/v1/v2
+// explicitly still cannot run against it: they are excluded below by name
+// and file. What remains exercises the v3 journeys end to end — sign-in
+// (authapi), the switching-transports v3 journey (random quote, catalog,
+// publish through quotesapi + PostgreSQL), and sign-out — everything the
+// frontend asks of this backend happens on v3.
 // This config lives outside the frontend package (the Go repository's own
 // e2e wiring), so playwright-bdd's featuresRoot — used verbatim, not
 // resolved against the config file's directory — must be pinned to the
@@ -56,8 +56,8 @@ export default defineConfig({
   // page counts over the seeded catalog — one worker, like the .NET job.
   workers: 1,
   // The transport-pinned features this v3-only backend cannot serve:
-  // browsing-quotes and publishing-quotes run on the SPA's v1 default (with
-  // one v0 scenario), so they are out by file; reading-quotes and
+  // browsing-quotes and publishing-quotes assert the v1 default and a v0
+  // scenario, so they are out by file; reading-quotes and
   // switching-transports are in, minus the scenarios that pin v0/v2 or
   // assert the v1 default by name.
   testIgnore: /browsing-quotes\.feature|publishing-quotes\.feature/,
@@ -73,6 +73,7 @@ export default defineConfig({
       env: {
         AUTH_API_HTTP: AUTH_HTTP,
         QUOTES_API_HTTP: QUOTES_HTTP,
+        VITE_DEFAULT_API_VERSION: 'v3',
       },
       url: VITE_HTTP,
       reuseExistingServer: !process.env.CI,

@@ -32,7 +32,7 @@ minted token. Without those variables it prints the unauthenticated probes inste
 | edge (dashboard) | `http://localhost:8080/` → `/dashboard/` (`QUOTES_EDGE_PORT` moves the whole front door) |
 | docs | `http://localhost:8080/docs/` (dev profile) |
 | pgweb | `http://localhost:8080/pgweb/` (dev profile; pre-connected to the catalog) |
-| SPA | `http://localhost:8080/app/` (fullstack profile; pick `v3` in the UI's version switcher) |
+| SPA | `http://localhost:8080/app/` (fullstack profile; starts on `v3` via `VITE_DEFAULT_API_VERSION`) |
 
 Both APIs bind `:8080` **in-container** (`SERVER__ADDRESS`); Traefik is the only service
 with a published host port. Dev surfaces (docs, pgweb, SPA) are routed by path prefix

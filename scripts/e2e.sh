@@ -8,10 +8,11 @@
 #
 # The API transport finding this wiring lives around: the SPA selects its
 # API version in src/api/client.ts — sessionStorage key "apiVersion",
-# default 'v1', no env hook — and this backend serves the v3 transport only,
-# so the playwright config excludes the scenarios that pin v0/v1/v2 by name
-# and file. The v3 journey (random quote, catalog, publish), the sign-in
-# journeys and sign-out run for real end to end.
+# defaulting to VITE_DEFAULT_API_VERSION (v1 when unset; the playwright
+# config bakes v3 into that default) — and this backend serves the v3
+# transport only, so the playwright config excludes the scenarios that pin
+# v0/v1/v2 by name and file. The v3 journey (random quote, catalog,
+# publish), the sign-in journeys and sign-out run for real end to end.
 #
 # E2E_SIGNING_KEY (>= 32 chars) is REQUIRED: it is the HS256 key both API
 # processes share. CI synthesizes an ephemeral one from the run id; locally

@@ -124,8 +124,9 @@ services:
   # The Vite dev server (fullstack profile) — the .NET stack's AddViteApp with
   # pnpm. The browser hits the edge on one port; /api/* and / share the same
   # origin. AUTH_API_HTTP/QUOTES_API_HTTP still target the edge for developers
-  # who run pnpm dev outside compose. Pick v3 in the UI switcher to drive this
-  # backend's v3 routes.
+  # who run pnpm dev outside compose. VITE_DEFAULT_API_VERSION pins the
+  # switcher's initial choice to v3 — this backend serves no v0/v1/v2 quote
+  # routes, so a fresh session would otherwise 404 until the user switches.
   frontend:
     image: docker.io/library/node:24.19.0-alpine3.23
     working_dir: /app
@@ -138,6 +139,7 @@ services:
       QUOTES_API_HTTP: http://edge:80
       VITE_DEV_ORIGIN: http://localhost:${QUOTES_EDGE_PORT:-8080}
       VITE_BASE_PATH: /app/
+      VITE_DEFAULT_API_VERSION: ${VITE_DEFAULT_API_VERSION:-v3}
     depends_on:
       - edge
     healthcheck:

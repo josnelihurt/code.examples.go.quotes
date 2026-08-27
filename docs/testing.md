@@ -85,7 +85,8 @@ concurrency-free core should never have data races.
   invalid, duplicate, reader-scope 403), health readiness degrading while the catalog
   database is down, the OpenAPI/Scalar surfaces
 - **e2e** — the SPA's sign-in, random-quote, catalog and publish journeys against the
-  v3 transport; scenarios pinning v0/v1/v2 are excluded by name in
+  v3 transport (the Playwright webServer bakes `VITE_DEFAULT_API_VERSION=v3` so the
+  SPA starts there); scenarios pinning v0/v1/v2 are excluded by name in
   `tests/e2e/playwright.config.ts`
 
 ## On `t.Parallel()`

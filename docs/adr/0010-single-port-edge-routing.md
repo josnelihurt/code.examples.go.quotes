@@ -30,9 +30,11 @@ container logs.
 6. **Docsify `relativePath: true`** in `docs/index.html` so client-side navigation works
    under `/docs/`.
 7. **Shared SPA stays host-configurable**: compose sets `VITE_DEV_ORIGIN` and
-   `VITE_BASE_PATH=/app/`. The SPA (`frontend/vite.config.ts`, `main.tsx` basename)
-   also accepts `VITE_SERVER_HOST` and `VITE_HMR_*`. All unset keeps Aspire /
-   `pnpm run dev` on stock `:5173` at `/`.
+   `VITE_BASE_PATH=/app/`, and pins the transport switcher with
+   `VITE_DEFAULT_API_VERSION=v3` (this backend serves only v3 quotes). The SPA
+   (`frontend/vite.config.ts`, `main.tsx` basename) also accepts
+   `VITE_SERVER_HOST` and `VITE_HMR_*`. All unset keeps Aspire / `pnpm run dev`
+   on stock `:5173` at `/` with the stock `v1` switcher default.
 
 ## Consequences
 

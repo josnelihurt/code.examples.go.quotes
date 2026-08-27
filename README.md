@@ -79,9 +79,10 @@ that round-trip to prove the stack: login, then one authenticated page of quotes
 ./scripts/start.sh down           # tear it all down
 ```
 
-The SPA's in-UI version switcher defaults to `v1`; pick `v3` there to drive this
-backend's routes. Prerequisites and the day-to-day tasks:
-[docs/local-dev.md](docs/local-dev.md).
+The SPA's in-UI version switcher starts on `v3` here — compose bakes
+`VITE_DEFAULT_API_VERSION=v3` because this backend serves only v3 quote routes
+(explicit choice through the switcher still works). Prerequisites and the
+day-to-day tasks: [docs/local-dev.md](docs/local-dev.md).
 
 ## The suites
 
