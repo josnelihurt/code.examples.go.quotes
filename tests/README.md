@@ -10,8 +10,8 @@ code in `internal/**/*_test.go`; everything here crosses a process boundary.
 | BDD specs | [bdd](bdd/) | cross-service journeys in business language, through the real Traefik edge | `./scripts/bdd.sh` |
 | Full-stack e2e | [e2e](e2e/) | the SPA from the `frontend/` submodule driven in Chromium against the real APIs + throwaway catalog | `./scripts/e2e.sh` |
 
-The rule that keeps the suite from doubling (same as the .NET repo's): if it can be
-proven without leaving one process, it does not belong in Gherkin. The exhaustive
+The rule that keeps the suite from doubling: if it can be proven without leaving one
+process, it does not belong in Gherkin. The exhaustive
 validation permutations are domain unit tests; the specs get one scenario proving a
 rejected quote surfaces as a 400 envelope to a caller who came through the edge.
 
