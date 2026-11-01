@@ -245,7 +245,7 @@ jobs:
       # runner's git (hidden by the action's `|| true`) or, on newer gits,
       # leaves the repository's own literals unlisted. Both spell a broken
       # allowlist, so every exclude names a path that exists here.
-      - uses: josnelihurt/code.examples.ci/secrets-hygiene@914ce2f68120ace140da1a445d44e854c97fb168 # v1
+      - uses: josnelihurt/code.examples.ci/secrets-hygiene@5159e4edf67e480c067345edc3e7748adbdc109f # v1
         with:
           pattern: 'supersecret|readsecret|Dev-Signing-Key|AspireQuotes-Local2!'
           exclude: |
@@ -264,7 +264,7 @@ jobs:
       # in sync; the compose topology carries its own (different) development
       # values and this workflow quotes none of them as literals. As above,
       # every exclude names a path that exists at this layer (see step 1).
-      - uses: josnelihurt/code.examples.ci/secrets-hygiene@914ce2f68120ace140da1a445d44e854c97fb168 # v1
+      - uses: josnelihurt/code.examples.ci/secrets-hygiene@5159e4edf67e480c067345edc3e7748adbdc109f # v1
         with:
           pattern: 'POSTGRES_PASSWORD=postgres|Password=postgres|PASSWORD .postgres.'
           exclude: |
