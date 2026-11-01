@@ -220,7 +220,7 @@ jobs:
 
       # The canonical rules live in the shared toolkit; the exemption covers
       # dependabot's automation branches (their names are not ours to choose).
-      - uses: josnelihurt/code.examples.ci/conventions@914ce2f68120ace140da1a445d44e854c97fb168 # v1
+      - uses: josnelihurt/code.examples.ci/conventions@5159e4edf67e480c067345edc3e7748adbdc109f # v1
         with:
           branch-exempt-regex: '^dependabot/'
 
